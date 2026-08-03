@@ -67,6 +67,41 @@ Only `bridge/.dev.vars.example` (placeholders) is committed. Real values go in
 `bridge/.dev.vars` (git-ignored) locally and via `wrangler secret put` in production. If you
 are about to commit anything that looks like a key, stop.
 
+## Studio sync boundaries — what must NOT live in this repo
+
+Cartridge is a member of JRM Studio. Some files reach this repo by machinery rather than by
+hand, and hand-authoring them is actively harmful — either it creates false drift in the sync
+engine's hash tracking, or it forks a file that then silently goes stale.
+
+| Kind | Where it comes from | Rule |
+| --- | --- | --- |
+| `.github/agents/`, `.github/skills/`, `.github/prompts/`, `.github/instructions/`, `agency.toml` | `chore(sync)` PR from `jrmoulckers/.github` | Never hand-edit. Fix upstream, then re-sync. |
+| `vendor/@jrm/tokens/` | `chore(sync)` PR, sourced from `jrmoulckers/studio` `packages/tokens/dist/` | Never hand-edit or hand-copy. |
+| `AGENTS.md` between `studio:base:start` / `studio:base:end` | Merged in by the sync engine | Edit only *outside* the markers. Everything above this line is product-authored and safe to change. |
+| `.studio-sync.lock.json` | The sync engine | Never create by hand. |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/DISCUSSION_TEMPLATE/` | **GitHub inherits these automatically** from `jrmoulckers/.github` | Do not add them here. A local copy overrides the inherited one and stops tracking upstream. |
+| `.github/workflows/reusable-*.yml` | Referenced by ref, never copied | Call them as `jrmoulckers/.github/.github/workflows/<name>.yml@main`. A vendored copy is a stale fork. |
+
+`.github/workflows/ci.yml` is the exception: it is product-owned forever. The sync engine
+reports reusable workflows as "native" but never writes them, so wiring and inputs are ours.
+
+## Deviations from the shared principles
+
+- **No shared lint/format presets.** `@jrm/eslint-config`, `@jrm/prettier-config`,
+  `@jrm/tsconfig` and `@jrm/tailwind-preset` have no transport to member repos — the sync
+  engine vendors `packages/tokens/dist` only, and nothing is published to a registry (see
+  studio's README transport table). Cartridge therefore carries no ESLint/Prettier yet, and
+  `ci.yml` inlines the semantic-PR-title check instead of calling `reusable-ci-lint`.
+- **Credential boundary is a Worker, not a Next.js server.** `principles/backend.md` #4
+  ("clients cannot be trusted to gate access — default deny") and `principles/security.md`
+  #1/#4 require third-party credentials to sit behind a first-party server. Of the four
+  platforms, only Steam has an official public API (server-side key); Xbox is partner-gated,
+  PlayStation is a reverse-engineered NPSSO flow and Nintendo has no API at all — so every
+  path is either a server-held key or a long-lived per-user secret. Cartridge satisfies that
+  with a local-first Svelte PWA plus the `bridge/` Cloudflare Worker as the sole secret
+  holder, rather than the Next.js server tier used by `jrm-recipes`. `principles/frontend.md`
+  #7 still binds: no secret ever reaches `src/`.
+
 <!-- studio:base:start -->
 <!-- synced from jrmoulckers/.github — canonical source; do not edit here -->
 
