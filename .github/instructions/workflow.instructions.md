@@ -72,6 +72,97 @@ Typical coverage:
 
 If any check fails, fix it, rerun the relevant checks, amend or commit, and push again.
 
+## Calling reusable workflows
+
+Studio product repos call the backbone's reusable workflows with
+`uses: jrmoulckers/.github/.github/workflows/reusable-*.yml@main`.
+
+**A caller `permissions:` block replaces the defaults — it does not add to them.** Every scope you
+omit is set to `none`, and a called workflow can never receive more than its caller holds. So a
+least-privilege `permissions: { contents: read }` in the caller silently strips the scopes the
+reusable workflow declares for itself. The symptom is a bare `startup_failure` with **no readable
+log**, which is easy to misdiagnose as a broken `uses:` reference.
+
+Grant every scope the callee declares:
+
+| Reusable workflow | Scopes the caller must grant |
+| --- | --- |
+| `reusable-ci-lint` | `contents: read` **and `pull-requests: read`** (Semantic PR Title job) |
+| `reusable-ci-web` | `contents: read` |
+| `reusable-perf-budget` | `contents: read` |
+| `reusable-smoke-test` | `contents: read` |
+| `reusable-deploy-preview` | `contents: read` (plus whatever your deploy step needs) |
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: read      # required by reusable-ci-lint
+
+jobs:
+  lint:
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@main
+    with:
+      package-manager: pnpm
+```
+
+Rules:
+
+- Before adding a caller-level `permissions:` block, open the callee and copy its declared scopes.
+- Omitting `permissions:` entirely inherits the repo default — safe, but less explicit.
+- If a scope truly cannot be granted, disable the job that needs it instead
+  (e.g. `semantic-pr-title: false` for `reusable-ci-lint`).
+- Debug a `startup_failure` with no log by checking caller permissions first.
+
+### Taking only part of `reusable-ci-lint`
+
+`reusable-ci-lint` carries three independent checks — lint, format-check, and Conventional-Commits
+PR title — and each is opt-out, so never inline a local copy of one of them:
+
+- No ESLint/Prettier in the repo? Pass `lint-command: ''` and `format-check-command: ''`. The lint
+  job then skips entirely (no checkout, no install) and only the PR-title check runs.
+- Have a linter but no formatter (or vice versa)? Empty just the one you lack.
+- Can't grant `pull-requests: read`? Pass `semantic-pr-title: false`.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-title:
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@main
+    with:
+      lint-command: ''
+      format-check-command: ''
+```
+
+Passing an empty string is the supported opt-out. Leaving a command at its default in a repo that
+has no such script fails the job; duplicating backbone logic locally makes the product repo drift
+from canon.
+
+### Never vendor a backbone workflow or health file
+
+`workflows` and `health` are **native** kinds: they reach product repos through GitHub itself, not
+through the sync engine, which resolves and reports them but never writes a file for them. So a
+product repo must contain **no copy of its own**:
+
+- **No `.github/workflows/reusable-*.yml`.** Call the backbone's with
+  `uses: jrmoulckers/.github/.github/workflows/reusable-*.yml@main`, never
+  `uses: ./.github/workflows/reusable-*.yml`. A vendored copy is a silent fork: upstream fixes never
+  reach it and nothing flags the divergence.
+- **No `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `PULL_REQUEST_TEMPLATE.md`,
+  `ISSUE_TEMPLATE/` or `DISCUSSION_TEMPLATE/`** unless you are deliberately overriding the studio
+  version for that repo. GitHub prefers a repo's own health file over the one inherited from
+  `jrmoulckers/.github`, so a verbatim copy overrides the inherited file and freezes it at the day
+  it was copied.
+
+In both cases a local copy is **worse than having nothing**, and the sync engine cannot rescue you
+— it never writes native kinds, so it can neither update the copy nor report it as drift. If you
+find one in a member repo, delete it; that is the whole fix.
+
+Opting in to `health` or `workflows` in `studio.config.json` means *"this member relies on the
+backbone's"* — it is a declaration, not an install.
+
 ## Merge Conflict Protocol
 
 Treat conflicts with the same urgency as red CI.
