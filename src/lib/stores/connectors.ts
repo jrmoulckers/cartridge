@@ -13,10 +13,10 @@
  * - **A large library must not freeze the app.** Work is chunked and yields to the event
  *   loop between batches, and progress is a store so the screen can show it.
  */
-import { writable, get } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type { Achievements, ID, Platform, Status } from '../types';
 import * as db from '../storage/db';
-import { library, refreshLibrary } from './library';
+import { library, links, refreshLibrary } from './library';
 import { fetchLibrary as boundedFetchLibrary, fetchAchievements, getConnector } from '../connectors/registry';
 import { ConnectorError, type Credentials } from '../connectors/types';
 import { ACHIEVEMENT_BATCH, STEAM_PRIVACY_URL } from '../connectors/steam';
@@ -87,6 +87,45 @@ export interface DisconnectResult {
   links: number;
   stats: number;
 }
+
+/**
+ * Platforms the library is linked to but this device has no credential for.
+ *
+ * Credentials are deliberately left out of backups — a backup is a file people email
+ * themselves and drop in cloud storage, and an account belongs in neither. The cost of that
+ * choice is this exact situation: restore onto a new phone and you get every game, rating and
+ * review back, with Steam quietly unattached. Left alone, the user finds out when a sync they
+ * didn't run doesn't happen.
+ *
+ * So it is derived rather than remembered. Links in the library plus no credential means
+ * "reconnect", whether that state arrived by a restore, a cleared browser, a second device or
+ * anything else. It resolves itself the moment they reconnect, and it can't go stale.
+ */
+export const needsReconnect = derived(
+  [links, connections, connectionsLoaded],
+  ([$links, $connections, $loaded]): Platform[] => {
+    if (!$loaded) return [];
+    const platforms = new Set<Platform>();
+    for (const link of $links) {
+      if (!link.deleted && !$connections[link.platform]) platforms.add(link.platform);
+    }
+    return [...platforms];
+  },
+);
+
+/** How many games are linked to a platform, for an honest number in the prompt. */
+export const linkedGameCounts = derived(links, ($links): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  const seen = new Set<string>();
+  for (const link of $links) {
+    if (link.deleted) continue;
+    const key = `${link.platform}:${link.gameId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    counts[link.platform] = (counts[link.platform] ?? 0) + 1;
+  }
+  return counts;
+});
 
 /**
  * Disconnect a platform.

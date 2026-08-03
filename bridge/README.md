@@ -199,6 +199,38 @@ server, and the app clears it from the address bar as soon as it has been stored
 - **A private profile is a distinct answer.** `403 steam-private` with a `helpUrl` pointing
   at the exact Steam setting, rather than a generic failure.
 
+## Residual risk — read this before you paste in a key
+
+**The origin allowlist is not authentication.** `Origin` is a request header, and a header is
+whatever the sender says it is. A browser sets it honestly because the browser enforces the
+same-origin policy; `curl` does not:
+
+```bash
+curl -H "Origin: https://you.github.io" \
+  "https://your-worker.workers.dev/steam/library?steamid=76561197960287930"
+```
+
+That request succeeds. So in practice:
+
+- **Anyone who learns your worker URL and one allowed origin can use this bridge as a free
+  Steam and IGDB proxy**, spending your Steam Web API quota and your Twitch app's rate limit.
+- They can read the **public** library of any SteamID they already know. The bridge adds no
+  reach here — a public Steam profile is public, and the bridge stores nothing and can be
+  asked about nothing it wasn't just told.
+- Cost is capped by Cloudflare's free tier rather than by anything the bridge does, so the
+  realistic damage is exhausted quota and a bridge that stops answering for a while.
+
+What actually mitigates this today is the per-IP throttle (a speed bump — see above) and the
+worker URL not being interesting enough to find. That is a reasonable trade for a personal
+deployment and a poor one for a public service.
+
+**Closing it properly needs real authentication** — a shared secret the app holds and the
+worker checks, or signed short-lived tokens. A static PWA cannot keep a secret from its own
+user, so this is not a small change: it means an account system, which Cartridge deliberately
+does not have. If you are deploying this beyond yourself and a few friends, use a Steam key
+issued for that purpose, keep an eye on the Cloudflare request graph, and rotate the key with
+`wrangler secret put STEAM_API_KEY` if it starts being spent by someone else.
+
 ## Costs
 
 Cloudflare's free tier covers 100,000 Worker requests and 100,000 KV reads a day. A
