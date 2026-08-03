@@ -87,8 +87,9 @@ drift and blocks future syncs. `vendor/` is deliberately **not** gitignored.
 - **Local ESLint / Prettier / TypeScript configs instead of the `@jrm` presets.** The studio
   is registry-free and the sync engine vendors **only** `packages/tokens/dist`, so
   `@jrm/eslint-config`, `@jrm/tsconfig`, `@jrm/prettier-config` and `@jrm/tailwind-preset`
-  cannot be resolved here. Local configs mirror their intent and should be replaced the day
-  those presets become consumable.
+  have no transport to member repos at all — see the transport table in the
+  `jrmoulckers/studio` README. Local configs mirror their intent and should be replaced the
+  day those presets become consumable.
 - **No Tailwind yet.** Plain CSS custom properties from `@jrm/tokens` are enough for now;
   the Tailwind preset can be adopted later without changing the token contract.
 - **`sharp` install script disabled** (`pnpm-workspace.yaml` → `allowBuilds.sharp: false`),
