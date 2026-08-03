@@ -8,7 +8,8 @@
  * - It writes `Game`, `PlatformLink` and `SessionStat`, and it creates an `Entry` for a
  *   genuinely new game. It never *modifies* an existing `Entry`. Status, rating, score,
  *   review, notes, dates, replays, tags, shelves and favourite are the user's own work, and
- *   nothing a platform says can overwrite them.
+ *   nothing a platform says can overwrite them. It does fill *blank* metadata fields on an
+ *   existing `Game` — see `GameEnrichment` — but only ones the planner proved were empty.
  * - It is safe to run twice. Links and stats are matched before being written, so a repeat
  *   apply updates the same rows instead of growing new ones.
  */
@@ -143,6 +144,13 @@ async function applyUpdate(
       });
     }
 
+    // Filling the blanks on a game that arrived unidentified. Spread order matters and is the
+    // whole safety property: the enrichment is a sparse object of gaps the planner already
+    // proved were empty, so nothing the user or an earlier sync wrote can be underneath it.
+    if (update.enrich && item) {
+      await db.putGame({ ...item.game, ...update.enrich });
+    }
+
     const stat = item?.stats.find((s) => s.platform === platform) ?? null;
     await writeStat(update.gameId, platform, stat, {
       minutesPlayed: update.minutesPlayed,
@@ -154,9 +162,7 @@ async function applyUpdate(
       externalId: update.externalId,
       title: update.title,
       outcome: update.newLink ? 'linked' : 'updated',
-      detail: update.newLink
-        ? `Already in your library — linked to ${PLATFORM_LABELS[platform]}`
-        : undefined,
+      detail: describeUpdate(update, platform),
     };
   } catch {
     return {
@@ -166,6 +172,16 @@ async function applyUpdate(
       detail: 'Couldn’t be saved',
     };
   }
+}
+
+/** The one-line explanation next to a title on the results screen. */
+function describeUpdate(update: PlannedUpdate, platform: Platform): string | undefined {
+  const identified = update.enrich?.igdbId != null;
+  if (update.newLink) {
+    const linked = `Already in your library — linked to ${PLATFORM_LABELS[platform]}`;
+    return identified ? `${linked}, and identified at last` : linked;
+  }
+  return identified ? 'Identified at last — cover art and details filled in' : undefined;
 }
 
 /**

@@ -31,6 +31,17 @@ const IGDB_URL = 'https://api.igdb.com/v4';
 /** Renew this long before the token actually expires, so no request races the boundary. */
 const TOKEN_SAFETY_S = 300;
 
+/**
+ * The gap between two uncached title searches.
+ *
+ * IGDB allows roughly four requests a second, and that budget belongs to the bridge as a
+ * whole, not to whoever happens to be syncing. One person's first Xbox import against a cold
+ * cache is the exact shape that spends it: hundreds of titles, none of them cached, back to
+ * back. Roughly three a second leaves headroom for everyone else's searches while a batch of
+ * twenty still finishes in about six seconds.
+ */
+const SEARCH_INTERVAL_MS = 300;
+
 export class UpstreamError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -303,14 +314,20 @@ export async function matchSteamAppids(
  *   ever asks. Which IGDB game a title refers to is a public fact and reveals nothing about
  *   who wanted to know.
  * - **Misses are cached too**, so an obscure title is paid for once rather than every sync.
- * - **Sequential**, never a fan-out: one user's import must not be able to fire twenty
- *   simultaneous searches and get the bridge throttled for everyone.
+ * - **Sequential and paced**, never a fan-out: one user's first sync of a three-hundred-game
+ *   library must not be able to burst past a limit that is shared with every other user of
+ *   this bridge. Cached titles cost nothing and are not paced.
  * - **Bounded by the caller**, which caps the batch.
+ * - **Stops rather than fails** when IGDB throttles us anyway. The titles resolved before
+ *   that point are returned *and* cached, so the next attempt starts warmer and gets further.
+ *   `complete: false` is what lets the app say "we didn't finish asking" instead of "these
+ *   games don't exist" — two sentences that would otherwise look identical from an empty
+ *   result.
  */
 export async function matchTitles(
   env: Env,
   titles: string[],
-): Promise<Record<string, GameMetadata>> {
+): Promise<{ matches: Record<string, GameMetadata>; complete: boolean }> {
   const matches: Record<string, GameMetadata> = {};
   // Several platform titles can normalise to the same key ("Hades" and "Hades™"). Resolve the
   // key once and hand the answer to every title that shares it.
@@ -321,6 +338,8 @@ export async function matchTitles(
     byKey.set(key, [...(byKey.get(key) ?? []), title]);
   }
 
+  let searched = 0;
+
   for (const [key, originals] of byKey) {
     const cacheKey = titleMatchKey(key);
     const cached = await readCache<{ game: GameMetadata | null }>(env, cacheKey);
@@ -329,13 +348,25 @@ export async function matchTitles(
       continue;
     }
 
-    // Search on the normalised key rather than the raw title: "Forza Horizon 5 Premium
-    // Edition (PC)" finds nothing, "forza horizon 5" finds the game.
-    const rows = await query<IgdbGame>(
-      env,
-      'games',
-      `search "${key}"; ${FIELDS} where category = (0,8,9,10,11); limit 10;`,
-    );
+    // Pace only the calls that actually reach IGDB, and only between them — never before the
+    // first, and never after a cache hit that cost nothing.
+    if (searched > 0) await sleep(SEARCH_INTERVAL_MS);
+    searched++;
+
+    let rows: IgdbGame[];
+    try {
+      // Search on the normalised key rather than the raw title: "Forza Horizon 5 Premium
+      // Edition (PC)" finds nothing, "forza horizon 5" finds the game.
+      rows = await query<IgdbGame>(
+        env,
+        'games',
+        `search "${key}"; ${FIELDS} where category = (0,8,9,10,11); limit 10;`,
+      );
+    } catch {
+      // Throttled, or upstream fell over. Either way the honest answer is "here is what we
+      // got, and we didn't finish" rather than a 502 that throws away work already paid for.
+      return { matches, complete: false };
+    }
 
     const game = bestMatch(
       rows
@@ -348,5 +379,9 @@ export async function matchTitles(
     if (normalized) for (const title of originals) matches[title] = normalized;
   }
 
-  return matches;
+  return { matches, complete: true };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

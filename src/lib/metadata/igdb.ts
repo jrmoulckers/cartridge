@@ -188,6 +188,9 @@ export async function matchTitles(
       complete = false;
       continue;
     }
+    // The bridge answers this too: it stops rather than fails when IGDB throttles it, so a
+    // 200 can still be a partial answer.
+    if (data.complete === false) complete = false;
     Object.assign(matches, data.matches ?? {});
   }
 

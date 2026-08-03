@@ -21,7 +21,7 @@ type in the titles and everything else works exactly the same. See `../ARCHITECT
 | `GET /igdb/search?q=<term>&limit=<1-25>` | Normalized metadata search. |
 | `GET /igdb/game/<igdbId>` | Normalized metadata for one game. |
 | `GET /igdb/by-steam?appids=<a,b,c>` | Steam appids resolved to IGDB games, up to 100 at a time. |
-| `GET /igdb/by-title?titles=<a\nb\nc>` | Plain titles resolved to IGDB games, strictly, up to 20 at a time. |
+| `GET /igdb/by-title?titles=<a\nb\nc>` | Plain titles resolved to IGDB games, strictly, up to 20 at a time. Paced, and answers `complete: false` rather than failing if IGDB throttles it partway. |
 | `GET /steam/login?return=<app URL>` | Starts Steam OpenID sign-in. |
 | `GET /steam/return?openid.*` | Verifies Steam's assertion, then redirects to the app with `#steam_id=…`. |
 | `GET /steam/library?steamid=<id>` | Owned games with total playtime and last-played. |
@@ -234,6 +234,19 @@ Three things about the data are worth knowing before you read your own library b
   a near-tie is treated as ambiguous and refused. Refused titles are imported under Xbox's own
   name, flagged, and listed for review on the import screen. A visible chore is a much better
   outcome than a rating silently attached to the wrong game.
+
+  A refused title does **not** doom that game to being duplicated later. When a subsequent
+  platform identifies it confidently, the existing row is upgraded in place — the `igdbId` is
+  stamped on and blank fields are filled, while anything already set, including the title, is
+  left alone. So the unmatched tail shrinks over time instead of quietly becoming a second
+  copy of a game you already had.
+- **A big first sync is paced, not burst.** `/igdb/by-title` is one IGDB search per uncached
+  title against a limit of roughly four a second that belongs to the whole bridge, so searches
+  are spaced about 300ms apart and cache hits cost nothing. If IGDB throttles us anyway the
+  route stops and answers `complete: false` with whatever resolved — that partial answer is
+  never cached, and everything in it is, so the next sync starts warmer and gets further. The
+  app reads that flag as "we didn't finish asking", which is a different sentence from "these
+  games don't exist".
 
 ## Hardening in place
 

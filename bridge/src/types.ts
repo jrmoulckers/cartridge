@@ -158,4 +158,10 @@ export interface XboxPlaytimeResponse {
  */
 export interface TitleMatchResponse {
   matches: Record<string, GameMetadata>;
+  /**
+   * False when the bridge stopped early — IGDB throttled it, or fell over. Whatever resolved
+   * before that point is still here and still correct; the rest is unanswered rather than
+   * unmatched.
+   */
+  complete: boolean;
 }
