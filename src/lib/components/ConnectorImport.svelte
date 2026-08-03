@@ -1,22 +1,32 @@
 <script lang="ts">
   /**
-   * The Steam import screen.
+   * The import review screen, for any connector.
    *
    * The rule this component exists to keep is simple: **nothing is written until the user
    * says so.** A library of eleven hundred games appearing in someone's collection without
    * warning is not an import, it's an accident, so the sync stops at a plan and this screen
    * shows what that plan would do — how many games are new, how many they already own and
-   * are about to gain a Steam link, how many Steam knows about that IGDB doesn't, and how
-   * many are already exactly right.
+   * are about to gain a link, how many the metadata database didn't recognise, and how many
+   * are already exactly right.
    *
-   * The shelf picker defaults to Backlog because an owned-but-unplayed Steam library *is* a
+   * The shelf picker defaults to Backlog because an owned-but-unplayed library *is* a
    * backlog, and putting a thousand games in "Played" would be a lie the user then has to
    * clean up by hand.
+   *
+   * Phase 4 made it platform-agnostic and gave the unmatched tail a section of its own. That
+   * second change matters more than it looks. Steam appids are carried by IGDB, so phase 3's
+   * unmatched tail was a handful of demos and soundtracks and a count was plenty. Xbox has no
+   * ids in IGDB, so its games are matched on title alone and the matcher is built to refuse
+   * when it isn't sure — which produces a real tail of real games. Hidden behind a number,
+   * that tail is a silent quality problem. Listed, it is a visible ten-minute chore. The
+   * alternative — guessing — attaches somebody's rating to the wrong game, and no number on
+   * this screen would ever reveal it.
    */
-  import { STATUSES, STATUS_LABELS, type ID, type Status } from '../types';
+  import { STATUSES, STATUS_LABELS, PLATFORM_LABELS, type ID, type Status } from '../types';
   import { customShelves } from '../stores/shelves';
   import { syncState, commitSync, resetSync } from '../stores/connectors';
   import { planCounts, planIsEmpty } from '../connectors/sync';
+  import { getConnector } from '../connectors/registry';
   import { formatPlaytime } from '../util';
 
   /** How many per-title rows to render before collapsing the rest into a count. */
@@ -27,12 +37,18 @@
   let showAll = $state(false);
 
   const plan = $derived($syncState.plan);
+  const platform = $derived($syncState.platform);
+  const label = $derived(platform ? PLATFORM_LABELS[platform] : 'that platform');
+  const capabilities = $derived(platform ? getConnector(platform)?.capabilities : undefined);
   const counts = $derived(plan ? planCounts(plan) : null);
   const empty = $derived(plan ? planIsEmpty(plan) : true);
   const phase = $derived($syncState.phase);
   const percent = $derived(
     $syncState.total > 0 ? Math.round(($syncState.done / $syncState.total) * 100) : 0,
   );
+
+  /** The games that will be added under the platform's own name. Reviewable, not hidden. */
+  const unidentified = $derived((plan?.adds ?? []).filter((add) => add.unmatched));
 
   const failures = $derived(($syncState.results ?? []).filter((r) => r.outcome === 'failed'));
 
@@ -45,13 +61,13 @@
 
 <section class="card stack" aria-labelledby="import-h">
   <h2 id="import-h">
-    {#if phase === 'done'}Import finished{:else}Review your Steam library{/if}
+    {#if phase === 'done'}Import finished{:else}Review your {label} library{/if}
   </h2>
 
   {#if phase === 'reviewing' && counts && plan}
     {#if empty}
       <p class="muted">
-        Nothing to do — all {counts.unchanged} games Steam reports are already in your library
+        Nothing to do — all {counts.unchanged} games {label} reports are already in your library
         with the same playtime.
       </p>
       <div class="row wrap">
@@ -61,21 +77,60 @@
       <ul class="summary">
         <li><strong>{counts.adds}</strong> new games will be added</li>
         <li>
-          <strong>{counts.newLinks}</strong> games you already have will gain a Steam link
+          <strong>{counts.newLinks}</strong> games you already have will gain a {label} link
           <span class="muted">— your ratings, reviews and shelves are not touched</span>
         </li>
         <li><strong>{counts.updates - counts.newLinks}</strong> will have their playtime refreshed</li>
         <li><strong>{counts.unchanged}</strong> are already up to date</li>
-        {#if counts.unmatched}
-          <li>
-            <strong>{counts.unmatched}</strong> couldn’t be identified in the metadata database.
-            <span class="muted">
-              They’ll be added with Steam’s own title and art rather than guessed at — you can
-              fix any of them later.
-            </span>
-          </li>
-        {/if}
       </ul>
+
+      {#if capabilities?.playtimeCoverage === 'partial'}
+        <p class="muted hint">
+          {label} only reports time played for some games. The rest will say “Not reported” rather
+          than showing a made-up zero.
+        </p>
+      {/if}
+
+      {#if counts.unmatched}
+        <!--
+          Deliberately its own section rather than a line in the summary above. These are the
+          games the matcher declined to guess at, and they are the one part of an import that
+          benefits from a human glance.
+        -->
+        <div class="notice stack-sm">
+          <h3 class="notice-h">
+            {counts.unmatched}
+            {counts.unmatched === 1 ? 'game wasn’t' : 'games weren’t'} identified
+          </h3>
+          <p class="muted">
+            They’ll still be imported, using {label}’s own title and art. Cartridge would rather
+            leave a game unidentified than attach your rating to the wrong one — open any of them
+            later and search for the right match in a couple of seconds.
+          </p>
+          {#if plan.matchingIncomplete}
+            <p class="muted">
+              Some of these were never checked, because the metadata lookup didn’t finish. Syncing
+              again will pick up where it stopped.
+            </p>
+          {/if}
+          <details>
+            <summary>Which ones ({unidentified.length})</summary>
+            <ul class="titles">
+              {#each unidentified.slice(0, showAll ? unidentified.length : PREVIEW) as add (add.externalId)}
+                <li class="row spread">
+                  <span class="grow">{add.title}</span>
+                  <span class="muted tag">{playtime(add.minutesPlayed)}</span>
+                </li>
+              {/each}
+            </ul>
+            {#if !showAll && unidentified.length > PREVIEW}
+              <button type="button" class="btn ghost" onclick={() => (showAll = true)}>
+                Show the rest
+              </button>
+            {/if}
+          </details>
+        </div>
+      {/if}
 
       {#if counts.adds > 0}
         <fieldset>
@@ -277,5 +332,28 @@
   .error {
     margin: 0;
     color: var(--bad);
+  }
+  /*
+    The unmatched tail. Given a surface of its own rather than a bullet, because on a
+    title-matched platform this is the part of an import a person should actually look at.
+    Toned down rather than alarming: nothing has gone wrong, there is just a small chore.
+  */
+  .notice {
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  .stack-sm {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+  .notice-h {
+    margin: 0;
+    font-size: var(--font-size-body);
+  }
+  .notice p {
+    margin: 0;
   }
 </style>

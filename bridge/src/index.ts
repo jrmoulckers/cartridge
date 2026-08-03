@@ -6,12 +6,17 @@
  *   GET /health              — liveness, and the probe Settings uses
  *   GET /igdb/search?q=      — normalized metadata search
  *   GET /igdb/game/:id       — normalized metadata for one game
- *   GET /igdb/by-steam       — Steam appids resolved to IGDB games, in bulk
- *   GET /steam/login         — starts Steam OpenID sign-in
- *   GET /steam/return        — verifies the assertion with Steam, hands back a SteamID
- *   GET /steam/library       — owned games and playtime
- *   GET /steam/recent        — the last two weeks
- *   GET /steam/achievements  — achievement progress for a bounded set of appids
+ *   GET /igdb/by-steam         — Steam appids resolved to IGDB games, in bulk
+ *   GET /igdb/by-title         — plain titles resolved to IGDB games, strictly, in bulk
+ *   GET /steam/login           — starts Steam OpenID sign-in
+ *   GET /steam/return          — verifies the assertion with Steam, hands back a SteamID
+ *   GET /steam/library         — owned games and playtime
+ *   GET /steam/recent          — the last two weeks
+ *   GET /steam/achievements    — achievement progress for a bounded set of appids
+ *   GET /xbox/account          — whose account an OpenXBL key belongs to
+ *   GET /xbox/library          — title history: games, last-played and achievement counts
+ *   GET /xbox/playtime         — minutes played, for the titles that report any
+ *   GET /xbox/achievements     — achievement progress for a bounded set of title ids
  *
  * What it deliberately does **not** do, now or later:
  *   - store a user's library, shelves, ratings, reviews or notes
@@ -21,10 +26,14 @@
  *     uses it inside that request and forgets it
  *
  * Everything it caches in KV is public game data plus its own Twitch app token. A SteamID
- * never appears in a cache key.
+ * never appears in a cache key, and neither does an XUID or an OpenXBL key.
+ *
+ * Phase 4 note: Xbox needs **no bridge secret at all**. The user brings their own free
+ * OpenXBL key, which arrives in the `X-XBL-Key` header — a header rather than a query
+ * parameter so that a long-lived credential stays out of URLs, access logs and history.
  */
 import { preflight, resolveOrigin, allowedOrigins, corsHeaders } from './cors';
-import { searchGames, getGame, matchSteamAppids, UpstreamError } from './igdb';
+import { searchGames, getGame, matchSteamAppids, matchTitles, UpstreamError } from './igdb';
 import {
   loginUrl,
   verifyAssertion,
@@ -35,7 +44,18 @@ import {
   PrivateProfileError,
   PRIVACY_HELP_URL,
 } from './steam';
-import type { BridgeError, Env, SteamAchievements } from './types';
+import {
+  getAccount,
+  getPlaytime,
+  getTitleAchievements,
+  getTitleHistory,
+  isOpenXblKey,
+  isXuid,
+  RateLimited,
+  XboxAuthError,
+  OPENXBL_KEY_URL,
+} from './xbox';
+import type { BridgeError, Env, SteamAchievements, XboxAchievements } from './types';
 
 /** Longest search term accepted. IGDB won't do anything useful with more. */
 const MAX_QUERY = 120;
@@ -44,6 +64,17 @@ const DEFAULT_LIMIT = 12;
 /** Appids per batch. Bounds both the IGDB query and the achievement fan-out. */
 const MAX_APPIDS = 100;
 const MAX_ACHIEVEMENT_APPIDS = 20;
+/**
+ * Titles per `/igdb/by-title` batch, and title ids per Xbox batch.
+ *
+ * Much smaller than the appid caps, and for a different reason in each case: a title match is
+ * one IGDB *search* per uncached title against a four-per-second shared limit, and an Xbox
+ * achievements batch is one OpenXBL call per title against a 150-per-hour user quota. Neither
+ * is a lookup that can be widened by asking nicely.
+ */
+const MAX_TITLES = 20;
+const MAX_TITLE_IDS = 200;
+const MAX_ACHIEVEMENT_TITLE_IDS = 10;
 
 /** A crude per-IP throttle: this many requests per window, tracked in KV. */
 const RATE_LIMIT = 60;
@@ -143,6 +174,38 @@ function steamFailure(origin: string, error: unknown): Response {
   return fail(origin, 500, 'internal', 'The bridge could not answer that right now.');
 }
 
+/**
+ * Turn whatever Xbox threw into the shared error envelope.
+ *
+ * Two failures are worth distinguishing by name because the user can act on them and the
+ * actions are different: a rejected key means "paste it again from xbl.io", a throttle means
+ * "wait". Everything else is deliberately vague — an unofficial upstream's own error text is
+ * not something to reflect into a browser.
+ */
+function xboxFailure(origin: string, error: unknown): Response {
+  if (error instanceof XboxAuthError) {
+    return fail(origin, 401, 'xbox-auth', error.message, { helpUrl: error.helpUrl });
+  }
+  if (error instanceof RateLimited) {
+    return fail(origin, 429, 'rate-limited', error.message, {
+      headers: { 'retry-after': String(error.retryAfterS) },
+    });
+  }
+  if (error instanceof UpstreamError) {
+    return fail(origin, error.status === 400 ? 400 : 502, 'upstream', error.message);
+  }
+  return fail(origin, 500, 'internal', 'The bridge could not answer that right now.');
+}
+
+/** Split and bound a comma-separated list of decimal ids (Xbox title ids). */
+function parseTitleIds(value: string | null, max: number): string[] {
+  const ids = (value ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => /^\d{1,20}$/.test(id));
+  return [...new Set(ids)].slice(0, max);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') return preflight(request, env);
@@ -233,6 +296,29 @@ export default {
         return json({ matches }, origin, {}, 24 * 60 * 60);
       }
 
+      /**
+       * Titles → IGDB games, for platforms IGDB carries no ids for.
+       *
+       * Newline-separated rather than comma-separated, because game titles contain commas
+       * ("Sid Meier's Civilization VI") and splitting on one would quietly shred them into
+       * fragments that match nothing. The whole parameter is URL-encoded by the caller.
+       *
+       * Cacheable like the rest of `/igdb/*`: the answer is a public fact about a game, it is
+       * the same for everyone who asks, and the request carries nothing about who asked.
+       */
+      if (url.pathname === '/igdb/by-title') {
+        const titles = (url.searchParams.get('titles') ?? '')
+          .split('\n')
+          .map((t) => t.trim().slice(0, MAX_QUERY))
+          .filter(Boolean);
+        const bounded = [...new Set(titles)].slice(0, MAX_TITLES);
+        if (!bounded.length) {
+          return fail(origin, 400, 'bad-request', 'Give at least one title.');
+        }
+        const matches = await matchTitles(env, bounded);
+        return json({ matches }, origin, {}, 24 * 60 * 60);
+      }
+
       const match = /^\/igdb\/game\/(\d+)$/.exec(url.pathname);
       if (match) {
         const game = await getGame(env, Number(match[1]));
@@ -275,6 +361,67 @@ export default {
           }
         } catch (error) {
           return steamFailure(origin, error);
+        }
+      }
+
+      // ── Xbox, via OpenXBL ─────────────────────────────────────────────────
+      // No bridge secret is involved: the key belongs to the user and arrives in a header,
+      // per request. It is used and forgotten — never logged, never cached, never echoed.
+      // Every response here is `no-store`, for the same reason Steam's are.
+
+      if (url.pathname.startsWith('/xbox/')) {
+        const key = request.headers.get('X-XBL-Key');
+        if (!isOpenXblKey(key)) {
+          return fail(origin, 400, 'bad-request', 'That request carried no usable OpenXBL key.', {
+            helpUrl: OPENXBL_KEY_URL,
+          });
+        }
+
+        try {
+          if (url.pathname === '/xbox/account') {
+            return json(await getAccount(key), origin);
+          }
+
+          // Everything below is keyed by XUID, which the app learned from /xbox/account and
+          // sends back. Checked here anyway: it is about to be interpolated into a path.
+          const xuid = url.searchParams.get('xuid');
+          if (!isXuid(xuid)) {
+            return fail(origin, 400, 'bad-request', 'That is not an Xbox user id.');
+          }
+
+          if (url.pathname === '/xbox/library') {
+            return json({ games: await getTitleHistory(key, xuid) }, origin);
+          }
+
+          if (url.pathname === '/xbox/playtime') {
+            const titleIds = parseTitleIds(url.searchParams.get('titleids'), MAX_TITLE_IDS);
+            if (!titleIds.length) {
+              return fail(origin, 400, 'bad-request', 'Give at least one Xbox title id.');
+            }
+            // One upstream call for the whole batch. A title with no figure is simply absent
+            // from `minutes` — the app turns that into `null`, never into a zero.
+            return json({ minutes: await getPlaytime(key, xuid, titleIds) }, origin);
+          }
+
+          if (url.pathname === '/xbox/achievements') {
+            const titleIds = parseTitleIds(
+              url.searchParams.get('titleids') ?? url.searchParams.get('titleid'),
+              MAX_ACHIEVEMENT_TITLE_IDS,
+            );
+            if (!titleIds.length) {
+              return fail(origin, 400, 'bad-request', 'Give at least one Xbox title id.');
+            }
+            // Sequential, and capped hard: this is one OpenXBL call per title against a
+            // 150-per-hour quota that belongs to the user, not to us. The library endpoint
+            // already carries these counts, so this is for refreshing a single game.
+            const results: XboxAchievements[] = [];
+            for (const titleId of titleIds) {
+              results.push(await getTitleAchievements(key, xuid, titleId));
+            }
+            return json({ results }, origin);
+          }
+        } catch (error) {
+          return xboxFailure(origin, error);
         }
       }
 

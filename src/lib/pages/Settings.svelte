@@ -21,13 +21,15 @@
     type Backup,
   } from '../storage/backup';
   import { bridgeAvailable, bridgeUrl, checkBridge } from '../metadata/igdb';
-  import SteamImport from '../components/SteamImport.svelte';
+  import ConnectorImport from '../components/ConnectorImport.svelte';
   import { readSteamResult, steamLoginUrl } from '../connectors/steam-auth';
   import { STEAM_PRIVACY_URL } from '../connectors/steam';
+  import { OPENXBL_KEY_URL } from '../connectors/xbox';
   import {
     connections,
     connectionsLoaded,
     connectSteam,
+    connectXbox,
     disconnect,
     linkedGameCounts,
     needsReconnect,
@@ -134,11 +136,58 @@
   const steamLinkedCount = $derived($linkedGameCounts.steam ?? 0);
   const syncing = $derived($syncState.phase === 'fetching' || $syncState.phase === 'matching');
   const showImport = $derived(
-    $syncState.platform === 'steam' &&
-      ($syncState.phase === 'reviewing' ||
-        $syncState.phase === 'applying' ||
-        $syncState.phase === 'done'),
+    $syncState.phase === 'reviewing' ||
+      $syncState.phase === 'applying' ||
+      $syncState.phase === 'done',
   );
+  const steamSyncing = $derived(syncing && $syncState.platform === 'steam');
+
+  // ── Xbox ──────────────────────────────────────────────────────────────────
+  // The credential here is a secret the user typed, which Steam's never was. So the input is
+  // a password field, the stored value is never rendered back, and the only thing shown once
+  // it works is the gamertag.
+
+  let xboxKey = $state('');
+  let xboxNotice = $state('');
+  let xboxBusy = $state(false);
+  let confirmingXboxDisconnect = $state(false);
+
+  const xbox = $derived($connections.xbox);
+  const xboxNeedsReconnect = $derived($needsReconnect.includes('xbox'));
+  const xboxLinkedCount = $derived($linkedGameCounts.xbox ?? 0);
+  const xboxSyncing = $derived(syncing && $syncState.platform === 'xbox');
+
+  async function connectXboxNow() {
+    xboxNotice = '';
+    if (!xboxKey.trim()) {
+      xboxNotice = 'Paste your OpenXBL API key first.';
+      return;
+    }
+    xboxBusy = true;
+    try {
+      await connectXbox(xboxKey);
+      // Out of the component's memory the moment it is stored. There is no reason to keep a
+      // secret sitting in a reactive variable behind a page the user has moved on from.
+      xboxKey = '';
+      showToast('Xbox connected', 'success');
+    } catch (e) {
+      xboxNotice = e instanceof Error ? e.message : 'That key could not be checked.';
+    } finally {
+      xboxBusy = false;
+    }
+  }
+
+  async function syncXbox() {
+    xboxNotice = '';
+    await prepareSync('xbox');
+  }
+
+  async function confirmXboxDisconnect() {
+    confirmingXboxDisconnect = false;
+    const counts = await disconnect('xbox');
+    resetSync();
+    showToast(`Xbox disconnected — ${counts.links} links removed`, 'success');
+  }
 
   /**
    * On arriving back from Steam, read the verified id out of the fragment and store it.
@@ -340,7 +389,7 @@
       <div class="row wrap">
         {#if steam}
           <button type="button" class="btn primary" onclick={syncSteam} disabled={syncing}>
-            {syncing ? 'Reading your library…' : 'Sync now'}
+            {steamSyncing ? 'Reading your library…' : 'Sync now'}
           </button>
           <button
             type="button"
@@ -389,7 +438,7 @@
       <p class="error" role="alert">{steamNotice}</p>
     {/if}
 
-    {#if syncing}
+    {#if steamSyncing}
       <p class="muted status" aria-live="polite">
         {$syncState.phase === 'fetching'
           ? 'Asking Steam what you own…'
@@ -443,11 +492,162 @@
     {/if}
   </div>
 
-  <p class="muted status">Xbox, PlayStation and Nintendo are still to come.</p>
+  <div class="platform">
+    <div class="row spread wrap">
+      <div class="grow">
+        <h3>Xbox <span class="pill">Unofficial</span></h3>
+        {#if !$connectionsLoaded}
+          <p class="muted status">Checking…</p>
+        {:else if xbox}
+          <p class="muted status">
+            Connected as {xbox.account}.
+            {#if xbox.syncedAt}
+              Last synced {new Date(xbox.syncedAt).toLocaleDateString()}.
+            {:else}
+              Not synced yet.
+            {/if}
+          </p>
+        {:else}
+          <p class="muted status">
+            Uses your own free key from OpenXBL, a third-party service. Microsoft has no public
+            Xbox library API, so this is the only route there is — and it can break without
+            warning. If it does, only this tab stops working.
+          </p>
+        {/if}
+      </div>
+
+      <div class="row wrap">
+        {#if xbox}
+          <button type="button" class="btn primary" onclick={syncXbox} disabled={syncing}>
+            {xboxSyncing ? 'Reading your library…' : 'Sync now'}
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            onclick={() => (confirmingXboxDisconnect = true)}
+            disabled={syncing}
+          >
+            Disconnect
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    {#if !xbox}
+      <div class="stack">
+        <div>
+          <label class="fieldlabel" for="xbl-key">OpenXBL API key</label>
+          <!--
+            A password field for a key rather than a token, because it is one: it grants read
+            access to an Xbox account for as long as it exists. It is stored on this device
+            with your other credentials, sent to your bridge only for the request that needs
+            it, and deliberately left out of backups.
+          -->
+          <input
+            id="xbl-key"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Paste your key"
+            bind:value={xboxKey}
+            disabled={!$bridgeUrl || xboxBusy}
+          />
+        </div>
+        <p class="muted status">
+          Sign in at
+          <a href={OPENXBL_KEY_URL} target="_blank" rel="noopener noreferrer">xbl.io</a>
+          with your Microsoft account and copy the key it shows you. It is yours rather than
+          Cartridge's, so your rate limit is your own — and it stays on this device.
+        </p>
+        <div class="row wrap">
+          <button
+            type="button"
+            class="btn primary"
+            onclick={connectXboxNow}
+            disabled={!$bridgeUrl || xboxBusy}
+          >
+            {xboxBusy ? 'Checking the key…' : 'Connect Xbox'}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if !$bridgeUrl}
+      <p class="muted status">
+        Xbox needs a bridge too — OpenXBL sends no browser CORS headers, so the request has to
+        go through it. Set one above and this turns on.
+      </p>
+    {/if}
+
+    {#if xboxNeedsReconnect}
+      <div class="notice">
+        <p>
+          <strong>{xboxLinkedCount}</strong>
+          {xboxLinkedCount === 1 ? 'game in your library is' : 'games in your library are'}
+          linked to Xbox, but this device isn’t connected to it.
+        </p>
+        <p class="muted">
+          Your OpenXBL key isn’t part of a backup, on purpose — a backup file is not a place for
+          a secret. Everything you wrote came across fine; paste the key again to resume syncing.
+        </p>
+      </div>
+    {/if}
+
+    {#if xboxNotice}
+      <p class="error" role="alert">{xboxNotice}</p>
+    {/if}
+
+    {#if xboxSyncing}
+      <p class="muted status" aria-live="polite">
+        {$syncState.phase === 'fetching'
+          ? 'Asking Xbox what you’ve played…'
+          : `Identifying games… ${$syncState.done} of ${$syncState.total}`}
+      </p>
+    {/if}
+
+    {#if $syncState.platform === 'xbox' && $syncState.error}
+      <div class="notice" role="alert">
+        <p>{$syncState.error}</p>
+        {#if $syncState.helpUrl}
+          <p class="muted">
+            <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
+              Get a new key from xbl.io
+            </a>
+          </p>
+        {/if}
+      </div>
+    {/if}
+
+    {#if confirmingXboxDisconnect}
+      <div class="confirm">
+        <p>Disconnect Xbox?</p>
+        <p class="muted">
+          This forgets your OpenXBL key and removes the Xbox playtime and achievement figures
+          from your library. <strong>Your games, ratings, reviews, notes and shelves stay
+          exactly as they are.</strong> The key itself lives in your xbl.io account — delete it
+          there if you want it gone for good.
+        </p>
+        <div class="row wrap">
+          <button type="button" class="btn danger" onclick={confirmXboxDisconnect}>
+            Disconnect Xbox
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            onclick={() => (confirmingXboxDisconnect = false)}
+          >
+            Keep it connected
+          </button>
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <p class="muted status">PlayStation and Nintendo are still to come.</p>
 </section>
 
 {#if showImport}
-  <SteamImport />
+  <ConnectorImport />
 {/if}
 
 <style>

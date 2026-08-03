@@ -73,23 +73,70 @@ export interface SyncPlan {
   unchanged: number;
   /** Adds that IGDB could not identify — surfaced honestly rather than guessed at. */
   unmatchedCount: number;
+  /**
+   * True when the metadata lookup ran out before it finished — a rate limit, a dropped
+   * connection, a bridge that stopped answering.
+   *
+   * Phase 4 needed this. Steam matches by appid, which IGDB carries, so an unmatched game
+   * was reliably a game IGDB does not know. Xbox matches by title, one lookup at a time
+   * against a tight budget, so "IGDB doesn't know this" and "we didn't get to ask" are two
+   * very different facts that would otherwise look identical: one is permanent and the other
+   * fixes itself on the next sync. Telling someone their game couldn't be identified when
+   * the truth is we ran out of requests is a small lie with a long tail.
+   */
+  matchingIncomplete: boolean;
 }
 
 export interface PlanOptions {
   platform: Platform;
   /** IGDB metadata keyed by the platform's external id, where it resolved. */
   metadata?: Record<string, GameMetadata>;
-  /** Achievement progress keyed by external id, when a sync fetched any. */
+  /**
+   * Achievement progress keyed by external id, when a sync fetched any separately.
+   * A connector that reported achievements inline on the game itself needs nothing here —
+   * see {@link ConnectorGame.achievements}, which this overrides when both are present.
+   */
   achievements?: Record<string, Achievements>;
+  /** See {@link SyncPlan.matchingIncomplete}. */
+  matchingIncomplete?: boolean;
 }
 
 /** Nothing to do — the shape an empty plan takes, so callers never special-case null. */
 export function emptyPlan(platform: Platform): SyncPlan {
-  return { platform, adds: [], updates: [], unchanged: 0, unmatchedCount: 0 };
+  return { platform, adds: [], updates: [], unchanged: 0, unmatchedCount: 0, matchingIncomplete: false };
 }
 
 export function planIsEmpty(plan: SyncPlan): boolean {
   return plan.adds.length === 0 && plan.updates.length === 0;
+}
+
+/**
+ * Achievement progress for a batch of games, from wherever it came.
+ *
+ * Two sources, because two platforms answer differently: Steam needs a separate call per game
+ * and hands back a map; Xbox carries the counts on the title itself. This collapses both into
+ * the one shape the plan and the applier understand, so neither has to know which platform it
+ * is looking at. A separately fetched figure wins over an inline one — asking directly is the
+ * more deliberate act, and it is also the fresher of the two.
+ *
+ * Exported so a caller can build the map once and hand the *same* one to `planSync` and
+ * `applyPlan`. The review screen and the write must not be able to disagree.
+ */
+export function mergeAchievements(
+  games: ConnectorGame[],
+  fetched: Record<string, Achievements> = {},
+): Record<string, Achievements> {
+  const out: Record<string, Achievements> = {};
+  for (const game of games) {
+    const inline = game.achievements;
+    // A 0-of-0 is "this game has no achievements", which is a fact about the game and not
+    // progress. Recording it would render as a meaningless empty bar forever.
+    if (inline && Number.isFinite(inline.total) && inline.total > 0) {
+      out[game.externalId] = { earned: inline.earned, total: inline.total };
+    }
+  }
+  for (const [externalId, value] of Object.entries(fetched)) out[externalId] = value;
+  return out;
 }
 
 // ── Identification ──────────────────────────────────────────────────────────
@@ -141,6 +188,11 @@ export function planSync(
 ): SyncPlan {
   const { platform, metadata = {}, achievements = {} } = options;
   const plan = emptyPlan(platform);
+  plan.matchingIncomplete = options.matchingIncomplete === true;
+
+  // Inline achievements and separately fetched ones, collapsed into one map before anything
+  // is compared — so idempotency below is measured against what will actually be written.
+  const progress = mergeAchievements(games, achievements);
 
   // A platform can report the same appid twice (Steam occasionally does across free and
   // owned lists). Collapse first, so the plan can never contain two rows for one id.
@@ -174,12 +226,28 @@ export function planSync(
     );
     const stat = item.stats.find((s) => s.platform === platform);
 
+    /**
+     * What this sync will record for playtime.
+     *
+     * A `null` from a platform means "not reported *this time*", and phase 4 is where that
+     * stopped being a hypothetical: OpenXBL's minutes come from a separate, best-effort call
+     * that can be throttled away while the library itself arrives fine. Writing the `null`
+     * through would turn a transient omission into permanent data loss — a figure the user
+     * had yesterday, gone today, with nothing on screen to explain it.
+     *
+     * So an unknown never erases a figure someone has actually played up. A stored `0` is
+     * deliberately *not* protected: it carries no history to lose, and phase 3 established
+     * that `0` and `null` are genuinely different states a game can move between.
+     */
+    const minutesPlayed =
+      game.minutesPlayed ?? (stat?.minutesPlayed != null && stat.minutesPlayed > 0 ? stat.minutesPlayed : null);
+
     const nothingChanged =
       link != null &&
       stat != null &&
-      stat.minutesPlayed === game.minutesPlayed &&
+      stat.minutesPlayed === minutesPlayed &&
       (stat.lastPlayedAt ?? undefined) === (game.lastPlayedAt ?? undefined) &&
-      sameAchievements(stat.achievements, achievements[game.externalId]);
+      sameAchievements(stat.achievements, progress[game.externalId]);
 
     // This is the idempotency guarantee, and it is a comparison rather than a promise: a
     // second sync over unchanged data produces a plan with nothing in it.
@@ -192,7 +260,7 @@ export function planSync(
       externalId: game.externalId,
       title: item.game.title,
       gameId: item.game.id,
-      minutesPlayed: game.minutesPlayed,
+      minutesPlayed,
       lastPlayedAt: game.lastPlayedAt,
       newLink: link == null,
       confidence,

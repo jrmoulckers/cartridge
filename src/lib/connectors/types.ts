@@ -2,10 +2,14 @@
  * The connector interface.
  *
  * A connector is one platform's answer to three questions: what does this person own,
- * what have they played lately, and what have they achieved. Phases 3–6 implement Steam,
- * Xbox, PlayStation and Nintendo behind this interface. Nothing implements it yet — the
- * point of writing it now is that the shape of the seam is a design decision, not an
- * accident of whichever platform happened to be built first.
+ * what have they played lately, and what have they achieved. Steam (phase 3) and Xbox
+ * (phase 4) implement it; PlayStation and Nintendo follow. The shape of the seam was a
+ * design decision made in phase 2, before any platform could bend it into its own shape.
+ *
+ * Phase 4 is where that held up or didn't, and it mostly held: three additive changes —
+ * {@link Capabilities.playtimeCoverage}, {@link ConnectorGame.achievements} and the plan's
+ * `matchingIncomplete` — were all the second platform needed. Each is documented where it
+ * sits with the Xbox fact that forced it.
  *
  * Three rules the interface exists to enforce:
  *
@@ -27,8 +31,19 @@ import type { Achievements, Platform } from '../types';
  * per-platform quirks, so "PlayStation has no playtime" is a value, not an `if`.
  */
 export interface Capabilities {
-  /** Reports total time played per game. */
+  /** Reports total time played per game — at all, for anything. */
   playtime: boolean;
+  /**
+   * *How much* of the library that figure covers, when `playtime` is true.
+   *
+   * Phase 4 added this rather than widening `playtime` itself, because they are two different
+   * questions and conflating them loses the answer to one of them. Steam reports minutes for
+   * every owned game (`complete`). Xbox reports them for whichever titles happen to define a
+   * `MinutesPlayed` stat and nothing for the rest (`partial`), so a `null` there is normal
+   * rather than a fault — and the UI should say "some games" instead of implying a gap is a
+   * failure. Absent means `complete`, which is the behaviour Steam already had.
+   */
+  playtimeCoverage?: 'complete' | 'partial';
   /** Reports achievements/trophies. */
   achievements: boolean;
   /** Reports a last-played timestamp. */
@@ -79,6 +94,17 @@ export interface ConnectorGame {
   lastPlayedAt?: number;
   /** Cover or icon URL the platform provides, if any. */
   imageUrl?: string;
+  /**
+   * Achievement progress, when the platform reports it *with* the library.
+   *
+   * Phase 4 added this. Steam is strictly one HTTP call per game for achievements, so the
+   * interface assumed a second round-trip was unavoidable; Xbox's title history carries the
+   * counts inline, and forcing it to throw them away and re-ask would cost one request per
+   * game against a 150-per-hour budget. A connector that has the numbers already says so here;
+   * one that doesn't leaves it undefined and the caller falls back to
+   * {@link Connector.fetchAchievements}.
+   */
+  achievements?: Achievements;
 }
 
 export interface ConnectorAchievements {
