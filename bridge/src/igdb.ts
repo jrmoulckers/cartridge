@@ -11,15 +11,18 @@
  * returns it to the client.
  */
 import type { Env, GameMetadata, Platform } from './types';
+import { bestMatch, matchKey, similarity } from './match';
 import {
   readCache,
   writeCache,
   searchKey,
   gameKey,
   steamMatchKey,
+  titleMatchKey,
   SEARCH_TTL_S,
   GAME_TTL_S,
   STEAM_MATCH_TTL_S,
+  TITLE_MATCH_TTL_S,
 } from './cache';
 
 const TOKEN_KEY = 'twitch:token:v1';
@@ -273,6 +276,76 @@ export async function matchSteamAppids(
   // will not start being known tomorrow, and re-asking every sync is pure waste.
   for (const appid of missing) {
     if (!found.has(appid)) await writeCache(env, steamMatchKey(appid), { game: null }, STEAM_MATCH_TTL_S);
+  }
+
+  return matches;
+}
+
+/**
+ * Resolve plain titles to IGDB games — the fallback for a platform IGDB has no ids for.
+ *
+ * This is the expensive, fallible cousin of {@link matchSteamAppids} and it exists because
+ * Xbox needs it: IGDB carries Steam's appids in `external_games` but not Xbox's title ids, so
+ * there is nothing to look *up* and the only thing left is to compare strings. That is a
+ * judgement, and judgements about identity are how a games library quietly ends up with a
+ * rating attached to the wrong game.
+ *
+ * So it is built to refuse. A title is resolved only when one candidate clears
+ * {@link TITLE_MATCH_THRESHOLD} *and* is clear of the runner-up by
+ * {@link TITLE_MATCH_MARGIN} — see `match.ts` for why both halves are needed. Everything else
+ * comes back absent, and absent is a perfectly good outcome: the caller keeps the game with
+ * the platform's own title and flags it as unidentified.
+ *
+ * Cost control, because this is one IGDB search per uncached title against a four-per-second
+ * shared rate limit:
+ *
+ * - **Cached per normalised title**, so "Halo Infinite" is resolved once for everybody who
+ *   ever asks. Which IGDB game a title refers to is a public fact and reveals nothing about
+ *   who wanted to know.
+ * - **Misses are cached too**, so an obscure title is paid for once rather than every sync.
+ * - **Sequential**, never a fan-out: one user's import must not be able to fire twenty
+ *   simultaneous searches and get the bridge throttled for everyone.
+ * - **Bounded by the caller**, which caps the batch.
+ */
+export async function matchTitles(
+  env: Env,
+  titles: string[],
+): Promise<Record<string, GameMetadata>> {
+  const matches: Record<string, GameMetadata> = {};
+  // Several platform titles can normalise to the same key ("Hades" and "Hades™"). Resolve the
+  // key once and hand the answer to every title that shares it.
+  const byKey = new Map<string, string[]>();
+  for (const title of titles) {
+    const key = matchKey(title);
+    if (!key) continue;
+    byKey.set(key, [...(byKey.get(key) ?? []), title]);
+  }
+
+  for (const [key, originals] of byKey) {
+    const cacheKey = titleMatchKey(key);
+    const cached = await readCache<{ game: GameMetadata | null }>(env, cacheKey);
+    if (cached) {
+      if (cached.game) for (const title of originals) matches[title] = cached.game;
+      continue;
+    }
+
+    // Search on the normalised key rather than the raw title: "Forza Horizon 5 Premium
+    // Edition (PC)" finds nothing, "forza horizon 5" finds the game.
+    const rows = await query<IgdbGame>(
+      env,
+      'games',
+      `search "${key}"; ${FIELDS} where category = (0,8,9,10,11); limit 10;`,
+    );
+
+    const game = bestMatch(
+      rows
+        .filter((row) => typeof row.name === 'string' && row.name)
+        .map((row) => ({ item: row, score: similarity(key, row.name as string) })),
+    );
+
+    const normalized = game ? normalize(game) : null;
+    await writeCache(env, cacheKey, { game: normalized }, TITLE_MATCH_TTL_S);
+    if (normalized) for (const title of originals) matches[title] = normalized;
   }
 
   return matches;

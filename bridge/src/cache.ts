@@ -27,12 +27,24 @@ export const GAME_TTL_S = 7 * 24 * 60 * 60;
 export const SCHEMA_TTL_S = 30 * 24 * 60 * 60;
 /** Which IGDB game a Steam appid is stays true for as long as both exist. */
 export const STEAM_MATCH_TTL_S = 30 * 24 * 60 * 60;
+/**
+ * Which IGDB game a *title* is stays true too — but this one is a judgement rather than a
+ * lookup, so it ages out sooner. IGDB gains games; a title that matched nothing today may
+ * match tomorrow, and a week is short enough to pick that up without re-asking constantly.
+ */
+export const TITLE_MATCH_TTL_S = 7 * 24 * 60 * 60;
 
 export const searchKey = (query: string) => `search:v1:${query.toLowerCase()}`;
 export const gameKey = (igdbId: number) => `game:v1:${igdbId}`;
 /** Keyed by appid — public, identical for every user, and never by SteamID. */
 export const schemaKey = (appid: string) => `steam:schema:v1:${appid}`;
 export const steamMatchKey = (appid: string) => `steam:igdb:v1:${appid}`;
+/**
+ * Keyed by the *normalised* title, so "Halo Infinite", "HALO INFINITE" and "Halo Infinite
+ * (PC)" are one entry. Public and identical for every user: which IGDB game a title refers to
+ * says nothing about who asked. No platform, no account, no id belonging to a person.
+ */
+export const titleMatchKey = (normalized: string) => `title:igdb:v1:${normalized}`;
 
 export async function readCache<T>(env: Env, key: string): Promise<T | null> {
   try {

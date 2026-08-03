@@ -2,10 +2,13 @@
 
 A **small, stateless Cloudflare Worker** that looks up game metadata (cover art, genres,
 release dates, summaries) from [IGDB](https://www.igdb.com/), brokers the
-[Steam Web API](https://steamcommunity.com/dev), and caches public game data in Cloudflare KV.
+[Steam Web API](https://steamcommunity.com/dev) and [OpenXBL](https://xbl.io/), and caches
+public game data in Cloudflare KV.
 
-It exists for exactly one reason: IGDB and Steam both require a key, and a key cannot live in
-a static PWA. The bridge is the only component in Cartridge that holds one.
+It exists for exactly one reason: IGDB and Steam both require a key, a key cannot live in a
+static PWA, and OpenXBL sends no CORS headers a browser would accept. The bridge is the only
+component in Cartridge that holds a secret — and for Xbox it holds none at all, because that
+key belongs to the user.
 
 **The bridge is optional.** With no bridge configured, Cartridge is fully functional — you
 type in the titles and everything else works exactly the same. See `../ARCHITECTURE.md`.
@@ -18,11 +21,19 @@ type in the titles and everything else works exactly the same. See `../ARCHITECT
 | `GET /igdb/search?q=<term>&limit=<1-25>` | Normalized metadata search. |
 | `GET /igdb/game/<igdbId>` | Normalized metadata for one game. |
 | `GET /igdb/by-steam?appids=<a,b,c>` | Steam appids resolved to IGDB games, up to 100 at a time. |
+| `GET /igdb/by-title?titles=<a\nb\nc>` | Plain titles resolved to IGDB games, strictly, up to 20 at a time. |
 | `GET /steam/login?return=<app URL>` | Starts Steam OpenID sign-in. |
 | `GET /steam/return?openid.*` | Verifies Steam's assertion, then redirects to the app with `#steam_id=…`. |
 | `GET /steam/library?steamid=<id>` | Owned games with total playtime and last-played. |
 | `GET /steam/recent?steamid=<id>` | The last two weeks. |
 | `GET /steam/achievements?steamid=<id>&appids=<a,b>` | Achievement progress, up to 20 appids at a time. |
+| `GET /xbox/account` | Whose OpenXBL key this is — XUID, gamertag, gamerscore. |
+| `GET /xbox/library?xuid=<id>` | Title history: games played, last-played, achievement counts. |
+| `GET /xbox/playtime?xuid=<id>&titleids=<a,b>` | Minutes played, batched, up to 200 title ids. |
+| `GET /xbox/achievements?xuid=<id>&titleids=<a,b>` | Achievement detail, up to 10 title ids at a time. |
+
+Every `/xbox/*` route requires an `X-XBL-Key` header. See
+[the Xbox path](#how-xbox-works) below.
 
 Responses use Cartridge's own shapes (`src/types.ts`), not IGDB's or Steam's. The app never
 parses an upstream response, so an upstream schema change is a bridge deploy rather than an
@@ -38,14 +49,15 @@ app release.
 - **Not required.** Turn it off and the app keeps working.
 
 Everything in KV is public game data — IGDB responses, Steam achievement schemas, the
-appid → IGDB mapping — plus the bridge's own Twitch app token. **No cache key anywhere in
-this worker contains a Steam ID**, and no owned-games list, playtime figure or achievement
-count for a *person* is ever written. Those responses are `no-store` end to end.
+appid → IGDB mapping, the title → IGDB mapping — plus the bridge's own Twitch app token.
+**No cache key anywhere in this worker contains a Steam ID, an XUID or an OpenXBL key**, and
+no owned-games list, playtime figure or achievement count for a *person* is ever written.
+Those responses are `no-store` end to end.
 
 ## Secrets you need
 
-Three. Two come from a single **Twitch application** — IGDB's API is authenticated through
-Twitch — and one from Steam.
+Three — and note that **none of them is for Xbox.** Two come from a single **Twitch
+application** — IGDB's API is authenticated through Twitch — and one from Steam.
 
 | Secret | What it is |
 | --- | --- |
@@ -176,6 +188,53 @@ pass before a Steam ID is handed back:
 The resulting Steam ID is returned in the URL **fragment**, which browsers never send to a
 server, and the app clears it from the address bar as soon as it has been stored.
 
+## How Xbox works
+
+Differently from Steam in every way that matters, and the differences are the interesting part.
+
+**There is no official Xbox library API.** Microsoft's Xbox Live services are partner-gated, so
+the only route a personal project has is [OpenXBL](https://xbl.io/) — an unofficial third-party
+proxy over Xbox Live. Cartridge is honest about that: the connector reports
+`capabilities.official: false`, the Settings card says so before you paste anything, and the
+app treats every OpenXBL response as untrusted input.
+
+**The key is the user's, not the bridge's.** You create a free key at xbl.io with your own
+Microsoft login. That is a deliberate choice over the bridge holding one app key for everybody:
+
+- OpenXBL's free tier is **150 requests an hour**. A shared app key would make the operator's
+  quota every user's bottleneck.
+- A shared key is a single thing to steal that unlocks everyone. A per-user key is not.
+- It keeps the bridge's promise intact — it holds no Xbox secret at all, and
+  `.dev.vars.example` gains nothing for this feature.
+
+**The key travels in a header, per request.**
+
+```
+app  ──X-XBL-Key: <key>──▶  /xbox/library  ──x-authorization──▶  xbl.io
+```
+
+A header rather than a query parameter, because a query parameter ends up in access logs, in
+`Referer` headers and in browser history — and this credential is long-lived, so there is no
+rotating it out of a log file afterwards. Inside the worker the key is used and dropped: it is
+never logged, never written to KV, never echoed in a response, and never part of a cache key.
+
+**A whole Xbox sync is about three upstream requests**, because `/player/titleHistory` carries
+last-played *and* achievement counts inline. That is what the 150/hour budget affords.
+
+Three things about the data are worth knowing before you read your own library back:
+
+- **Title history is what you have *played*, not what you *own*.** A game bought and never
+  launched is simply absent from Xbox's answer. Cartridge cannot invent it.
+- **Playtime is patchy.** Minutes come from a separate batched `player/stats` call and only
+  exist for titles that define the stat. Everything else is `null` → "Not reported", never a
+  fabricated `0`. (On Steam a `0` is real and means "owned, never launched" — a different fact.)
+- **Matching is fuzzy, on purpose conservatively.** IGDB carries Steam appids as external ids
+  but not Xbox title ids, so an Xbox game is matched by *title* via `/igdb/by-title`. That
+  route accepts a candidate only at **≥ 0.94 similarity and clear of the runner-up by 0.06**;
+  a near-tie is treated as ambiguous and refused. Refused titles are imported under Xbox's own
+  name, flagged, and listed for review on the import screen. A visible chore is a much better
+  outcome than a rating silently attached to the wrong game.
+
 ## Hardening in place
 
 - **CORS is an exact allowlist.** No wildcard, no pattern matching. An unlisted origin gets
@@ -185,19 +244,25 @@ server, and the app clears it from the address bar as soon as it has been stored
   unlisted origin gets a `403`, not a redirect.
 - **`GET` only.** Anything else is a `405`.
 - **Input is bounded.** Search terms are 2–120 characters; `limit` is clamped to 1–25; a game
-  id must match `/^\d+$/`; a Steam ID must be exactly 17 digits; appid batches are capped at
-  100 (IGDB) and 20 (achievements) and every id is digits-only before it reaches upstream.
+  id must match `/^\d+$/`; a Steam ID must be exactly 17 digits; an XUID and every Xbox title
+  id are digits-only; batches are capped at 100 (IGDB appids), 20 (Steam achievements), 20
+  (title matches), 200 (Xbox playtime) and 10 (Xbox achievements) before anything reaches
+  upstream.
 - **Per-IP throttle.** 60 requests per minute per IP, counted in KV. KV is eventually
   consistent, so this is a speed bump that protects the shared upstream rate limits, not a
   security control.
 - **One error envelope.** Every failure is `{ "error": "...", "message": "..." }`, optionally
   with a `helpUrl` when the user can fix it themselves. Upstream stack traces are never
-  returned.
+  returned — including OpenXBL's, which is an unofficial service whose error text is not
+  something to reflect into a browser.
 - **Cache policy is echoed.** Search responses are cacheable for an hour by the browser and a
-  day in KV; a single game is a day and a week. Everything under `/steam/` that involves a
-  Steam ID is `no-store` and is never written to KV at all.
+  day in KV; a single game is a day and a week; a title match is a week. Everything under
+  `/steam/` that involves a Steam ID, and **everything under `/xbox/` without exception**, is
+  `no-store` and is never written to KV.
 - **A private profile is a distinct answer.** `403 steam-private` with a `helpUrl` pointing
-  at the exact Steam setting, rather than a generic failure.
+  at the exact Steam setting, rather than a generic failure. Xbox's equivalents are
+  `401 xbox-auth` (the key was rejected — make a new one) and `429 rate-limited` with a
+  `retry-after` (wait), because those are two different actions for the user to take.
 
 ## Residual risk — read this before you paste in a key
 
@@ -224,6 +289,23 @@ What actually mitigates this today is the per-IP throttle (a speed bump — see 
 worker URL not being interesting enough to find. That is a reasonable trade for a personal
 deployment and a poor one for a public service.
 
+**Xbox changes the shape of this risk, mostly for the better.** There is no bridge-held Xbox
+credential to spend, so an unauthorised caller who reaches `/xbox/*` gets a `400` unless they
+also bring a working OpenXBL key — and if they have one, it is their own quota they are
+burning, not yours. The bridge is a proxy for that traffic, not a key.
+
+The flip side is worth stating plainly: **your OpenXBL key passes through whichever bridge you
+point Cartridge at, on every Xbox request.** If you deploy the bridge yourself, that is your own
+worker and the risk is the one you already accepted for Steam. If you point Cartridge at someone
+else's bridge, you are handing them a long-lived read credential for your Xbox account. Don't.
+Deploy your own — it takes about five minutes, and the instructions are above.
+
+**OpenXBL is unofficial and can break.** It is a third party proxying a service that has not
+invited it. It may change shape, rate-limit harder, or stop existing. Every response is
+shape-checked and every failure is scoped to the Xbox tab, so when that happens Cartridge keeps
+working, Steam keeps syncing, and your library — which lives on your device, not here — is
+untouched.
+
 **Closing it properly needs real authentication** — a shared secret the app holds and the
 worker checks, or signed short-lived tokens. A static PWA cannot keep a secret from its own
 user, so this is not a small change: it means an account system, which Cartridge deliberately
@@ -236,4 +318,9 @@ issued for that purpose, keep an eye on the Cloudflare request graph, and rotate
 Cloudflare's free tier covers 100,000 Worker requests and 100,000 KV reads a day. A
 personal Cartridge install will not come close — most lookups are served from the app's own
 in-memory cache before they ever reach the bridge, and a Steam sync is a handful of requests
-however large the library.
+however large the library. An Xbox sync is about three.
+
+The limit you will actually meet first is **OpenXBL's 150 requests an hour**, which is theirs
+rather than Cloudflare's and belongs to your key. Cartridge is built around it: achievements
+ride along with the library, playtime is batched into one call, and a throttled sync keeps
+everything it already fetched instead of throwing the import away.

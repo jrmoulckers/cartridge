@@ -20,13 +20,22 @@ import { library, links, refreshLibrary } from './library';
 import { fetchLibrary as boundedFetchLibrary, fetchAchievements, getConnector } from '../connectors/registry';
 import { ConnectorError, type Credentials } from '../connectors/types';
 import { ACHIEVEMENT_BATCH, STEAM_PRIVACY_URL } from '../connectors/steam';
-import { matchSteamAppids } from '../metadata/igdb';
+import {
+  ACHIEVEMENT_BATCH as XBOX_ACHIEVEMENT_BATCH,
+  fetchAccount as fetchXboxAccount,
+} from '../connectors/xbox';
+import { matchSteamAppids, matchTitles } from '../metadata/igdb';
 import type { GameMetadata } from '../metadata/types';
 import { applyPlan, type SyncResultRow } from '../connectors/apply';
 import { emptyPlan, planSync, type SyncPlan } from '../connectors/sync';
 
 /** How many appids go to the bridge's IGDB lookup at once. Matches its own cap. */
 const MATCH_BATCH = 100;
+/**
+ * How many *titles* go at once. An order of magnitude smaller than the appid batch, because
+ * each uncached title costs an IGDB search rather than a row in a bulk lookup.
+ */
+const TITLE_MATCH_BATCH = 20;
 /** Titles written between yields. Big enough to be quick, small enough to stay responsive. */
 const APPLY_CHUNK = 25;
 /**
@@ -63,7 +72,12 @@ export async function refreshConnections(): Promise<void> {
         platform: row.platform,
         connectedAt: row.connectedAt,
         syncedAt: row.syncedAt,
-        account: typeof row.values.steamId === 'string' ? row.values.steamId : undefined,
+        account:
+          typeof row.values.gamertag === 'string'
+            ? row.values.gamertag
+            : typeof row.values.steamId === 'string'
+              ? row.values.steamId
+              : undefined,
       };
     }
     connections.set(next);
@@ -78,6 +92,28 @@ export async function connectSteam(steamId: string): Promise<void> {
   await db.setCredentials({
     platform: 'steam',
     values: { steamId },
+    connectedAt: Date.now(),
+  });
+  await refreshConnections();
+}
+
+/**
+ * Store an OpenXBL key, having first checked it works.
+ *
+ * The check is the point. A Steam ID is public and inert, so phase 3 could store one on sight;
+ * an API key pasted into a text box is neither, and the failure mode of storing an unverified
+ * one is a connection that looks fine in Settings and fails at the least convenient moment.
+ * So it is exchanged for an XUID and a gamertag first, and only a working key is written.
+ *
+ * The key itself is stored in the same on-device `credentials` store as everything else —
+ * excluded from backups since DB v2, because a long-lived secret has no business in a file
+ * people email to themselves.
+ */
+export async function connectXbox(apiKey: string): Promise<void> {
+  const account = await fetchXboxAccount(apiKey.trim());
+  await db.setCredentials({
+    platform: 'xbox',
+    values: { apiKey: apiKey.trim(), xuid: account.xuid, gamertag: account.gamertag },
     connectedAt: Date.now(),
   });
   await refreshConnections();
@@ -223,27 +259,83 @@ export async function prepareSync(platform: Platform, signal?: AbortSignal): Pro
     return;
   }
 
-  // Match appids to IGDB in batches. This degrades quietly: with no bridge or a failed
-  // lookup the import still runs, just with the platform's own titles and art.
+  // Resolve the platform's games to IGDB in batches. This degrades quietly: with no bridge
+  // or a failed lookup the import still runs, just with the platform's own titles and art.
   patch({ phase: 'matching', total: games.length, done: 0 });
 
-  const matches: Record<string, GameMetadata> = {};
-  for (let i = 0; i < games.length; i += MATCH_BATCH) {
-    if (signal?.aborted) return;
-    const batch = games.slice(i, i + MATCH_BATCH).map((g) => g.externalId);
-    Object.assign(matches, await matchSteamAppids(batch, signal));
-    patch({ done: Math.min(i + MATCH_BATCH, games.length) });
-    await yieldToUi();
-  }
+  const resolved = await resolveMetadata(platform, games, signal, (done) =>
+    patch({ done: Math.min(done, games.length) }),
+  );
 
   const achievements = await collectAchievements(platform, credentials, games, signal);
 
-  const plan = planSync(get(library), games, { platform, metadata: matches, achievements });
+  const plan = planSync(get(library), games, {
+    platform,
+    metadata: resolved.matches,
+    achievements,
+    matchingIncomplete: !resolved.complete,
+  });
 
   // Stash the achievements alongside the plan so `commitSync` writes the same data the
   // review described, rather than re-fetching and possibly showing different numbers.
   pendingAchievements = achievements;
   patch({ phase: 'reviewing', plan, done: games.length, current: undefined });
+}
+
+/**
+ * Resolve a platform's games to IGDB, by whatever route that platform allows.
+ *
+ * This is the fork phase 4 existed to find. Steam appids are carried by IGDB as external ids,
+ * so phase 3 could *look them up* and never had to make a judgement. Xbox title ids are not
+ * carried by anything, so the only handle left is the title — and comparing titles is a guess.
+ * Both paths end in the same shape, keyed by the platform's own id, so `planSync` never learns
+ * the difference.
+ *
+ * The `complete` flag is the other half. A title the bridge declined to match and a title we
+ * never got to ask about look identical in the result and mean opposite things, so the caller
+ * is told which happened and the review screen says so.
+ */
+async function resolveMetadata(
+  platform: Platform,
+  games: { externalId: string; title: string }[],
+  signal: AbortSignal | undefined,
+  onProgress: (done: number) => void,
+): Promise<{ matches: Record<string, GameMetadata>; complete: boolean }> {
+  const matches: Record<string, GameMetadata> = {};
+  let complete = true;
+
+  if (platform === 'steam') {
+    for (let i = 0; i < games.length; i += MATCH_BATCH) {
+      if (signal?.aborted) return { matches, complete: false };
+      const batch = games.slice(i, i + MATCH_BATCH).map((g) => g.externalId);
+      Object.assign(matches, await matchSteamAppids(batch, signal));
+      onProgress(i + MATCH_BATCH);
+      await yieldToUi();
+    }
+    return { matches, complete };
+  }
+
+  // Title matching, for every platform IGDB has no ids for. Deliberately strict at the bridge:
+  // an ambiguous title comes back unmatched rather than guessed, and the unmatched tail is
+  // shown to the user instead of being quietly resolved to the wrong game.
+  for (let i = 0; i < games.length; i += TITLE_MATCH_BATCH) {
+    if (signal?.aborted) return { matches, complete: false };
+    const batch = games.slice(i, i + TITLE_MATCH_BATCH);
+    const result = await matchTitles(
+      batch.map((g) => g.title),
+      signal,
+    );
+    if (!result.complete) complete = false;
+    // Re-key from title to the platform's own id, which is what the planner works in.
+    for (const game of batch) {
+      const match = result.matches[game.title.trim()];
+      if (match) matches[game.externalId] = match;
+    }
+    onProgress(i + TITLE_MATCH_BATCH);
+    await yieldToUi();
+  }
+
+  return { matches, complete };
 }
 
 /**
@@ -253,27 +345,38 @@ export async function prepareSync(platform: Platform, signal?: AbortSignal): Pro
  * happen, and a number next to a game nobody has opened in four years is worth very little.
  * A failure here is swallowed: achievements are the least important thing a sync produces
  * and must never be the reason one fails.
+ *
+ * Phase 4 added the first branch. Xbox's title history carries achievement counts inline, so
+ * asking again would cost one request per game out of a hundred-and-fifty-per-hour budget for
+ * numbers already in hand. A connector that supplies them is believed; the fan-out is only for
+ * the games it left out.
  */
 async function collectAchievements(
   platform: Platform,
   credentials: Credentials,
-  games: { externalId: string; minutesPlayed: number | null; lastPlayedAt?: number }[],
+  games: { externalId: string; minutesPlayed: number | null; lastPlayedAt?: number; achievements?: Achievements }[],
   signal?: AbortSignal,
 ): Promise<Record<string, Achievements>> {
   const connector = getConnector(platform);
   if (!connector?.capabilities.achievements) return {};
 
+  const out: Record<string, Achievements> = {};
+  for (const game of games) {
+    if (game.achievements && game.achievements.total > 0) out[game.externalId] = game.achievements;
+  }
+
   const candidates = games
+    .filter((g) => !out[g.externalId])
     .filter((g) => (g.minutesPlayed ?? 0) > 0)
     .sort((a, b) => (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0))
     .slice(0, ACHIEVEMENT_LIMIT)
     .map((g) => g.externalId);
-  if (!candidates.length) return {};
+  if (!candidates.length) return out;
 
-  const out: Record<string, Achievements> = {};
-  for (let i = 0; i < candidates.length; i += ACHIEVEMENT_BATCH) {
+  const batchSize = connector.platform === 'steam' ? ACHIEVEMENT_BATCH : XBOX_ACHIEVEMENT_BATCH;
+  for (let i = 0; i < candidates.length; i += batchSize) {
     if (signal?.aborted) break;
-    const batch = candidates.slice(i, i + ACHIEVEMENT_BATCH);
+    const batch = candidates.slice(i, i + batchSize);
     const result = await fetchAchievements(platform, { credentials, externalIds: batch, signal });
     // A rate-limit here would otherwise cost the whole sync. Stop asking; keep what we have.
     if (!result.ok) break;
@@ -328,8 +431,9 @@ export async function commitSync(options: CommitOptions): Promise<void> {
 
 /** A connector error, translated into what the UI needs to show. */
 function describe(error: ConnectorError): { error: string; helpUrl?: string } {
-  if (error.kind === 'private') {
-    return { error: error.message, helpUrl: error.helpUrl ?? STEAM_PRIVACY_URL };
+  if (error.helpUrl) return { error: error.message, helpUrl: error.helpUrl };
+  if (error.kind === 'private' && error.platform === 'steam') {
+    return { error: error.message, helpUrl: STEAM_PRIVACY_URL };
   }
-  return { error: error.message, helpUrl: error.helpUrl };
+  return { error: error.message };
 }

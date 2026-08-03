@@ -13,6 +13,7 @@
  *   apply updates the same rows instead of growing new ones.
  */
 import type { Achievements, ID, LibraryItem, Platform, SessionStat, Status } from '../types';
+import { PLATFORM_LABELS } from '../types';
 import * as db from '../storage/db';
 import { uid } from '../util';
 import { gameFieldsFor, type PlannedAdd, type PlannedUpdate, type SyncPlan } from './sync';
@@ -128,8 +129,11 @@ async function applyUpdate(
     );
 
     if (!existingLink) {
-      // The heart of it: an existing game *gains* a Steam link. Its entry — rating, review,
-      // shelf, everything the user wrote — is not read here, let alone written.
+      // The heart of it: an existing game *gains* a link to this platform. Its entry —
+      // rating, review, shelf, everything the user wrote — is not read here, let alone
+      // written. Phase 4 made this concrete rather than theoretical: a game owned on Steam
+      // *and* Xbox arrives here the second time as an update, not an add, and ends up as one
+      // row with two links and two stats.
       await db.createLink({
         gameId: update.gameId,
         platform,
@@ -150,7 +154,9 @@ async function applyUpdate(
       externalId: update.externalId,
       title: update.title,
       outcome: update.newLink ? 'linked' : 'updated',
-      detail: update.newLink ? 'Already in your library — linked to Steam' : undefined,
+      detail: update.newLink
+        ? `Already in your library — linked to ${PLATFORM_LABELS[platform]}`
+        : undefined,
     };
   } catch {
     return {

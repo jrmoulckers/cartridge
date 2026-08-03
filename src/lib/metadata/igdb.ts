@@ -8,7 +8,13 @@
  */
 import { derived, writable, get } from 'svelte/store';
 import { settings } from '../stores/settings';
-import type { BridgeError, GameMetadata, SearchResponse, SteamMatchResponse } from './types';
+import type {
+  BridgeError,
+  GameMetadata,
+  SearchResponse,
+  SteamMatchResponse,
+  TitleMatchResponse,
+} from './types';
 import { rememberSearch, recallSearch, rememberGame, recallGame } from './cache';
 
 /** How long any single bridge request may take before it is abandoned. */
@@ -136,8 +142,62 @@ export async function matchSteamAppids(
   return data?.matches ?? {};
 }
 
-// ── The strict client ───────────────────────────────────────────────────────
+/**
+ * What a batch of titles resolved to, and whether the question was fully answered.
+ *
+ * `complete: false` is the whole reason this isn't just a `Record`. "IGDB has never heard of
+ * this game" and "we couldn't reach IGDB" produce an identical empty result and mean opposite
+ * things: one is permanent and the user should fix it by hand, the other clears itself on the
+ * next sync. Collapsing them would tell a user to go and correct thirty games that were never
+ * actually wrong.
+ */
+export interface TitleMatches {
+  /** Keyed by the exact title string that was asked about. Unmatched titles are absent. */
+  matches: Record<string, GameMetadata>;
+  complete: boolean;
+}
 
+/**
+ * IGDB games for a batch of plain titles — the fallback for platforms IGDB has no ids for.
+ *
+ * Deliberately weaker than {@link matchSteamAppids}, and deliberately *stricter* about what it
+ * will accept: appids are a lookup, titles are a judgement. The bridge refuses anything that
+ * isn't an unambiguous winner, so an absent title here usually means "we weren't sure", not
+ * "it doesn't exist" — which is exactly the outcome the import screen surfaces rather than
+ * hides.
+ *
+ * Batched in chunks the bridge will accept, and sequential, because each uncached title costs
+ * an IGDB search.
+ */
+export async function matchTitles(
+  titles: string[],
+  signal?: AbortSignal,
+): Promise<TitleMatches> {
+  const unique = [...new Set(titles.map((t) => t.trim()).filter(Boolean))];
+  const matches: Record<string, GameMetadata> = {};
+  let complete = true;
+
+  for (let i = 0; i < unique.length; i += TITLE_BATCH) {
+    const batch = unique.slice(i, i + TITLE_BATCH);
+    const data = await request<TitleMatchResponse>(
+      `/igdb/by-title?titles=${encodeURIComponent(batch.join('\n'))}`,
+      signal,
+    );
+    if (!data) {
+      // Keep what we have and say so. Partial knowledge beats abandoning the sync.
+      complete = false;
+      continue;
+    }
+    Object.assign(matches, data.matches ?? {});
+  }
+
+  return { matches, complete };
+}
+
+/** Titles per `/igdb/by-title` call. Must not exceed the bridge's own cap. */
+const TITLE_BATCH = 20;
+
+// ── The strict client ───────────────────────────────────────────────────────
 /**
  * What went wrong, in enough detail for a connector to turn it into a `ConnectorError`.
  * `status: 0` means no response arrived at all.
@@ -161,10 +221,16 @@ export type BridgeResult<T> = { ok: true; value: T } | { ok: false; failure: Bri
  * connector is the opposite: "your Steam profile is private" is the single most useful
  * thing the app can say, and losing it to a `null` would be a bug. Both live here so there
  * is still exactly one place in the app that calls `fetch`.
+ *
+ * `extraHeaders` exists for exactly one reason: Xbox's credential is a user-supplied
+ * OpenXBL key, and it travels in `X-XBL-Key` rather than in the query string so that a
+ * long-lived secret never lands in a URL — not in an access log, not in a `Referer`, not in
+ * the browser's own history. It goes to the bridge and nowhere else, once per request.
  */
 export async function bridgeRequest<T>(
   path: string,
   signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
 ): Promise<BridgeResult<T>> {
   const base = get(bridgeUrl);
   if (!base) {
@@ -173,7 +239,7 @@ export async function bridgeRequest<T>(
       failure: {
         status: 0,
         error: 'no-bridge',
-        message: 'No metadata bridge is configured, so Cartridge can’t reach Steam.',
+        message: 'No metadata bridge is configured, so Cartridge can’t reach that platform.',
       },
     };
   }
@@ -186,7 +252,7 @@ export async function bridgeRequest<T>(
   try {
     const response = await fetch(base + path, {
       signal: controller.signal,
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json', ...extraHeaders },
       credentials: 'omit',
       mode: 'cors',
     });

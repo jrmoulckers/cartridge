@@ -27,7 +27,10 @@ export function corsHeaders(origin: string | null): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Accept, Content-Type',
+    // `X-XBL-Key` carries a user's own OpenXBL key. It is a header rather than a query
+    // parameter precisely so it stays out of URLs, access logs and browser history — which
+    // means the preflight has to permit it or the browser will never send it.
+    'Access-Control-Allow-Headers': 'Accept, Content-Type, X-XBL-Key',
     'Access-Control-Max-Age': '86400',
     // The response body varies by origin, so caches must not share it across origins.
     Vary: 'Origin',

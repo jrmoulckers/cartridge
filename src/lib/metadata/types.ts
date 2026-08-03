@@ -80,3 +80,56 @@ export interface SteamAchievementsResponse {
 export interface SteamMatchResponse {
   matches: Record<string, GameMetadata>;
 }
+
+/** IGDB games resolved from plain titles, keyed by the title asked about. */
+export interface TitleMatchResponse {
+  matches: Record<string, GameMetadata>;
+}
+
+// ── Xbox ────────────────────────────────────────────────────────────────────
+// Mirrors of `bridge/src/types.ts`. The bridge has already shape-checked everything here
+// against a third-party proxy over Xbox Live, so by the time it reaches the app it is at
+// least the right *shape* — but see `connectors/xbox.ts` for why the connector still
+// doesn't take that on faith.
+
+/** Who an OpenXBL key belongs to. The key itself is never echoed back. */
+export interface XboxAccount {
+  xuid: string;
+  gamertag: string;
+  gamerscore: number | null;
+  avatarUrl?: string;
+}
+
+/** One title out of Xbox's title history — what has been *played*, not what is owned. */
+export interface XboxGame {
+  titleId: string;
+  title: string;
+  /**
+   * Always `null` from this endpoint. Xbox reports minutes separately and only for titles
+   * that define the stat, so the library call cannot know — and `null` means "not reported",
+   * never "zero". Filled in later, for the titles that have one.
+   */
+  minutesPlayed: number | null;
+  lastPlayedAt?: number;
+  imageUrl?: string;
+  /** Rides along with the library, so achievements cost no extra request. */
+  achievements?: { earned: number; total: number } | null;
+}
+
+export interface XboxAchievements {
+  titleId: string;
+  achievements: { earned: number; total: number } | null;
+}
+
+export interface XboxLibraryResponse {
+  games: XboxGame[];
+}
+
+export interface XboxAchievementsResponse {
+  results: XboxAchievements[];
+}
+
+/** Minutes played, keyed by title id. A title with no figure is simply absent. */
+export interface XboxPlaytimeResponse {
+  minutes: Record<string, number>;
+}

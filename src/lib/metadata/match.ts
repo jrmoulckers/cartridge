@@ -122,3 +122,56 @@ export function matchGame(items: LibraryItem[], candidate: MatchCandidate): Matc
 export function matchTokens(title: string): string[] {
   return tokenize(matchKey(title));
 }
+
+// ── Matching against a search result, rather than against the library ───────
+//
+// Everything above compares a platform title against the user's *own* games — a small,
+// curated set where a near-match is usually right. Phase 4 needed the other question:
+// which of IGDB's search results, if any, is this title? That pool is enormous and full of
+// sequels, remasters and regional re-releases, so it needs a stricter rule.
+//
+// The rule lives here because this file is where Cartridge's matching policy is stated, and
+// it is duplicated verbatim in `bridge/src/match.ts` — the bridge is a separate deployable
+// with its own tsconfig, and the two must agree. Change one, change the other.
+
+/**
+ * How similar a candidate must be before we will call it the same game.
+ *
+ * Higher than {@link MATCH_THRESHOLD}, and that is the point: "Halo 3" and "Halo 3: ODST"
+ * are different games that score high against each other, and so are "Portal" and
+ * "Portal 2". At 0.86 those merge. At 0.94 they don't.
+ */
+export const TITLE_MATCH_THRESHOLD = 0.94;
+
+/**
+ * How far clear of the runner-up the winner must be.
+ *
+ * The threshold alone is not enough. If two candidates both score 0.95 then one of them is
+ * wrong and there is no way to tell which, so *both* are refused. This is the check that
+ * turns "we found something" into "we found the only thing it could be".
+ */
+export const TITLE_MATCH_MARGIN = 0.06;
+
+export interface Scored<T> {
+  item: T;
+  score: number;
+}
+
+/**
+ * The one candidate a title unambiguously refers to, or `null`.
+ *
+ * `null` is a good answer and by far the most common one for the awkward tail of a library.
+ * The game is still imported — with the platform's own title and art, flagged as
+ * unidentified — and the user can fix it in seconds on its own page. A wrong match, by
+ * contrast, merges two games into one row and takes a rating and a review with it.
+ */
+export function bestMatch<T>(candidates: Scored<T>[]): T | null {
+  if (!candidates.length) return null;
+
+  const ranked = [...candidates].sort((a, b) => b.score - a.score);
+  const [winner, runnerUp] = ranked;
+
+  if (winner.score < TITLE_MATCH_THRESHOLD) return null;
+  if (runnerUp && winner.score - runnerUp.score < TITLE_MATCH_MARGIN) return null;
+  return winner.item;
+}

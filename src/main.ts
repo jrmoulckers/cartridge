@@ -7,6 +7,7 @@ import { refreshLibrary } from './lib/stores/library';
 import { refreshShelves } from './lib/stores/shelves';
 import { registerConnector } from './lib/connectors/registry';
 import { steamConnector } from './lib/connectors/steam';
+import { xboxConnector } from './lib/connectors/xbox';
 import { refreshConnections } from './lib/stores/connectors';
 
 /**
@@ -23,6 +24,7 @@ async function boot() {
   applySettings();
   initPWA();
   registerConnector(steamConnector);
+  registerConnector(xboxConnector);
   mount(App, { target: document.getElementById('app')! });
   await refreshShelves();
   await refreshLibrary();

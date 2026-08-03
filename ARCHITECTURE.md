@@ -44,20 +44,22 @@ flowchart TB
     end
 
     subgraph cf["Cloudflare"]
-        Bridge["bridge/ — stateless Worker<br/>/health · /igdb/* · /steam/*"]
-        KV[("KV 'METADATA'<br/>public IGDB data + app token<br/>+ Steam schemas keyed by appid<br/>no user data, ever")]
+        Bridge["bridge/ — stateless Worker<br/>/health · /igdb/* · /steam/* · /xbox/*"]
+        KV[("KV 'METADATA'<br/>public IGDB data + app token<br/>+ Steam schemas keyed by appid<br/>+ title→IGDB matches<br/>no user data, ever")]
     end
 
     IGDB["IGDB / Twitch API"]
     Plat["Steam Web API + OpenID"]
-    Soon["Xbox · PlayStation · Nintendo<br/>(phases 4–6)"]
+    XBL["OpenXBL — unofficial<br/>the user's own API key, per request"]
+    Soon["PlayStation · Nintendo<br/>(phases 5–6)"]
 
     UI -.optional.-> Meta --> Bridge
     Stores -.optional.-> Conn --> Bridge
     Bridge <--> KV
     Bridge --> IGDB
     Bridge --> Plat
-    Bridge -.phases 4–6.-> Soon
+    Bridge --> XBL
+    Bridge -.phases 5–6.-> Soon
 ```
 
 The dotted edges are the whole design: everything outside `device` can be deleted and the
@@ -91,12 +93,14 @@ future sync layer drops in without a migration.
 | `entries` | `id` | `byGame`, `byStatus`, `byUpdated` | The user's relationship to a game. |
 | `shelves` | `id` | `byOrder` | Five built-ins plus custom. |
 | `sessionStats` | `id` | `byGame` | Synced playtime, last-played, achievements. |
-| `credentials` | `platform` | — | Platform credentials — for Steam, a 64-bit account id. **Excluded from backup and restore.** |
+| `credentials` | `platform` | — | Platform credentials — for Steam a 64-bit account id, for Xbox the user's own OpenXBL API key plus their XUID and gamertag. **Excluded from backup and restore.** |
 | `meta` | `key` | — | Schema version and app-level odds and ends. |
 
 `credentials` (added in v2) is deliberately outside the backup envelope. A backup is a file
 people email themselves and drop in cloud storage; an account credential does not belong in
-one, and re-connecting a platform takes two clicks. The visible cost is that a restore brings
+one, and re-connecting a platform takes two clicks. Phase 4 made that reasoning literal rather
+than precautionary: Xbox's credential is a long-lived API key, not a public account number.
+The visible cost is that a restore brings
 back platform links with no account behind them, so `needsReconnect` derives that state from
 the library and shows a reconnect prompt rather than letting a sync silently do nothing.
 
@@ -109,15 +113,17 @@ holding it in memory is what makes search instant and every screen work offline.
 
 ## The bridge
 
-A stateless Cloudflare Worker. It exists because IGDB requires a client secret and a static
-PWA cannot hold one.
+A stateless Cloudflare Worker. It exists because IGDB requires a client secret a static PWA
+cannot hold, and because neither the Steam Web API nor OpenXBL will answer a browser directly.
 
 - **Auth**: Twitch client-credentials, token cached in KV until shortly before expiry,
-  never returned to the client.
+  never returned to the client. Xbox needs no bridge secret — the key is the user's and
+  arrives per request.
 - **Normalization**: IGDB responses are mapped to Cartridge's `GameMetadata` in the worker.
   The app never sees an IGDB field name, so an upstream schema change is a bridge deploy.
 - **Cache**: search 24h, game 7d in KV; `Cache-Control` echoed to the browser. Steam
-  achievement schemas and appid → IGDB mappings cache for 30 days, keyed by appid — public
+  achievement schemas and appid → IGDB mappings cache for 30 days, keyed by appid, and
+  title → IGDB matches for 7 days keyed by the normalised title — public
   facts about a game, not about a person.
 - **Hardening**: exact-match CORS allowlist, `GET` only, bounded input, per-IP throttle, one
   error envelope, no upstream stack traces.
@@ -127,11 +133,13 @@ sender says it is. So a deployed bridge is, in practice, an open Steam and IGDB 
 by the deployer's keys for anyone who learns the URL and an allowed origin. Closing that needs
 real authentication, which needs an account system Cartridge deliberately doesn't have.
 `bridge/README.md`'s "Residual risk" section spells this out so nobody deploys it without
-knowing.
+knowing. Xbox is the exception that proves the shape of the problem: there is no bridge-held
+Xbox key to spend, so `/xbox/*` is useless to a caller who hasn't brought their own.
 
-**No cache key contains a SteamID, and no user's library is ever written to KV.** A library
-and its playtime are personal, and the whole point of the bridge is that it brokers keys, not
-that it holds data. Steam library and recent-games calls pass straight through.
+**No cache key contains a SteamID, an XUID or an OpenXBL key, and no user's library is ever
+written to KV.** A library and its playtime are personal, and the whole point of the bridge is
+that it brokers keys, not that it holds data. Steam and Xbox library calls pass straight
+through, `no-store`.
 
 See `bridge/README.md` for the secrets and how to obtain them.
 
@@ -168,6 +176,23 @@ merges two games and takes a rating and a review with it.
 | Matching | `/igdb/by-steam` resolves appids through IGDB's `external_games`, so matching is near-exact rather than by title. |
 | Private profiles | Steam answers `{"response":{}}` with HTTP 200. The bridge detects it and returns `403 steam-private` with a help URL; the app shows the exact privacy setting to change. |
 
+### Xbox (phase 4)
+
+The second connector, and the one that tested whether the interface generalised. It mostly
+did: three **additive** changes were all it needed — `Capabilities.playtimeCoverage`,
+`ConnectorGame.achievements` and `SyncPlan.matchingIncomplete`. Each is documented where it is
+declared, with the Xbox fact that forced it.
+
+| Piece | Where |
+| --- | --- |
+| API | [OpenXBL](https://xbl.io/), an **unofficial** third-party proxy over Xbox Live. There is no public Microsoft alternative. `capabilities.official` is `false` and the UI says so. |
+| Credential | The user's **own** free OpenXBL API key, created with their Microsoft login. Sent in an `X-XBL-Key` header — a header rather than a query parameter so a long-lived secret stays out of URLs, access logs and history. The bridge holds no Xbox secret at all. |
+| Data | `/account`, `/player/titleHistory` (games, last-played **and** achievement counts inline), `/player/stats` (minutes, batched), `/achievements/player/{xuid}/{titleId}`. |
+| Budget | 150 requests/hour on the free tier. A full sync is about three, because achievements ride along with the library and playtime batches. A throttled sync keeps what it fetched instead of failing whole. |
+| Matching | **The hard part.** IGDB carries no Xbox title ids, so games are matched by title through `/igdb/by-title` at ≥ 0.94 similarity *and* 0.06 clear of the runner-up. An ambiguous title is refused, imported under Xbox's own name, and listed for review on the import screen. |
+| Playtime | Often absent — `null` → "Not reported". Never a fabricated `0`, and never allowed to erase a figure a previous sync already recorded. |
+| Ownership | Title history is what has been *played*, not what is *owned*. A never-launched purchase is simply absent, and Cartridge does not invent it. |
+
 ## Failure modes, and what the user sees
 
 | What breaks | What happens |
@@ -179,6 +204,9 @@ merges two games and takes a rating and a review with it.
 | One connector throws | That platform shows as degraded. Every other platform, and the whole local app, is unaffected. |
 | A Steam profile is private | A named error state explaining which setting to change, with a link straight to it — not a generic toast. |
 | Steam rate-limits mid-sync | Achievements stop being fetched; the library import finishes with what it has. |
+| OpenXBL rate-limits mid-sync | Playtime is dropped, the library still imports, and figures a previous sync recorded are kept rather than blanked. |
+| OpenXBL returns nonsense | Rejected as unsupported at the shape check. Xbox degrades; Steam and the local library are untouched — proven in `cross-platform.test.ts`. |
+| A title can't be matched confidently | It imports under its Xbox name and art, and is listed on the import screen for review. Nothing is guessed. |
 | A game fails to import | It's listed as failed in the per-title results. The other nine hundred still land. |
 | A backup is restored on a new device | The library comes back whole; platform links with no credential behind them raise a reconnect prompt instead of a sync that silently does nothing. |
 | A backup file is wrong | The envelope check rejects it before anything is written. |

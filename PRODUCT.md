@@ -37,7 +37,8 @@ metadata lookup are conveniences layered on top of a complete app, never load-be
 
 Owning a game on Steam *and* Xbox gives you **one** entry with two platform links and
 merged stats — not two rows to rate separately. Your opinion of a game is about the game,
-not the storefront.
+not the storefront. As of phase 4 this is a tested property rather than an intention: see
+`src/lib/connectors/cross-platform.test.ts`.
 
 ### Playtime you don't have is not zero
 
@@ -98,7 +99,7 @@ Cartridge is deliberately **not**:
 | **1 — local core** ✅ | Shelves, manual entry, ratings, Markdown reviews and notes, dates, replays, tags, search and filter, JSON backup/restore, full offline operation. |
 | **2 — the bridge** ✅ | Cloudflare Worker with IGDB search and metadata, KV-cached. Real covers, genres, release dates. The connector interface, with no connectors. |
 | **3 — Steam** ✅ | The first connector: Steam sign-in via OpenID, owned games, playtime, achievements, and a review step before anything is written. |
-| 4 — Xbox | Xbox library and achievements. |
+| **4 — Xbox** ✅ | The second connector, via the unofficial OpenXBL. Title history, last-played, achievements, batched playtime. Title-based IGDB matching that refuses to guess, with the unmatched tail listed for review. |
 | 5 — PlayStation | PSN library and trophies (no playtime — see above). |
 | 6 — Nintendo | Nintendo, within whatever the platform actually permits. |
 | 7 — stats | Year in review, playtime and rating distributions, backlog burn-down. |
