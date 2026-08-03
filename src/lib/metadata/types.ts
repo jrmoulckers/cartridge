@@ -39,4 +39,44 @@ export interface SearchResponse {
 export interface BridgeError {
   error: string;
   message: string;
+  /** Where the user can fix it themselves, when that is a real place. */
+  helpUrl?: string;
+}
+
+// ── Steam ───────────────────────────────────────────────────────────────────
+
+/**
+ * One owned game as the bridge reports it. Identical in shape to `ConnectorGame` except
+ * for the id's name, because the bridge speaks Steam's vocabulary and the connector speaks
+ * Cartridge's.
+ */
+export interface SteamGame {
+  appid: string;
+  title: string;
+  /**
+   * Total minutes played. Steam reports this, so `0` is a true zero — owned, never
+   * launched — and is a different fact from `null`.
+   */
+  minutesPlayed: number | null;
+  lastPlayedAt?: number;
+  imageUrl?: string;
+}
+
+export interface SteamAchievements {
+  appid: string;
+  /** `null` when the game has no achievements at all. Not a failure. */
+  achievements: { earned: number; total: number } | null;
+}
+
+export interface SteamLibraryResponse {
+  games: SteamGame[];
+}
+
+export interface SteamAchievementsResponse {
+  results: SteamAchievements[];
+}
+
+/** IGDB games resolved from Steam appids, keyed by appid. Unmatched appids are absent. */
+export interface SteamMatchResponse {
+  matches: Record<string, GameMetadata>;
 }

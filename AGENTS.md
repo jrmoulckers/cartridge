@@ -35,7 +35,7 @@ passes CI.
 | `src/lib/stores/` | Svelte stores; the only layer components talk to. |
 | `src/lib/library/` | Pure search / filter / sort / rating logic. Unit-tested, no DOM. |
 | `src/lib/metadata/` | Bridge client, metadata cache, IGDB matching helpers. |
-| `src/lib/connectors/` | The platform-connector interface and registry. |
+| `src/lib/connectors/` | The platform-connector interface, registry, connectors, and the pure sync planner. |
 | `bridge/` | Cloudflare Worker. **The only component that holds secrets.** |
 | `vendor/@jrm/tokens` | Vendored studio design tokens. Never hand-edited — see `vendor/README.md`. |
 

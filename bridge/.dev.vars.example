@@ -10,4 +10,9 @@
 
 TWITCH_CLIENT_ID="your-twitch-client-id"
 TWITCH_CLIENT_SECRET="your-twitch-client-secret"
+
+# Steam Web API key, from https://steamcommunity.com/dev/apikey — see README.md.
+# Used per request to broker Steam calls; never stored next to anything identifying a user.
+STEAM_API_KEY="your-steam-web-api-key"
+
 ALLOWED_ORIGINS="http://localhost:5173"

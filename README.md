@@ -14,7 +14,8 @@ conveniences on top of an app that is already complete without them.
 | --- | --- |
 | 1 — local-first core | ✅ done |
 | 2 — metadata bridge + connector interface | ✅ done |
-| 3–6 — Steam, Xbox, PlayStation, Nintendo connectors | not started |
+| 3 — Steam connector | ✅ done |
+| 4–6 — Xbox, PlayStation, Nintendo connectors | not started |
 | 7–8 — stats, import/export | not started |
 
 ## Quick start

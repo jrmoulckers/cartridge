@@ -15,6 +15,11 @@ export interface Env {
   /** Twitch application credentials — IGDB authenticates through Twitch. */
   TWITCH_CLIENT_ID: string;
   TWITCH_CLIENT_SECRET: string;
+  /**
+   * Steam Web API key. Used per request and never stored alongside anything that
+   * identifies a user — see `steam.ts`.
+   */
+  STEAM_API_KEY: string;
 }
 
 /** Cartridge's platform vocabulary. Must match `Platform` in the app. */
@@ -42,4 +47,44 @@ export interface SearchResponse {
 export interface BridgeError {
   error: string;
   message: string;
+  /** Where the user can fix it themselves, when that is a real place. */
+  helpUrl?: string;
+}
+
+// ── Steam ───────────────────────────────────────────────────────────────────
+
+/**
+ * One owned game, in Cartridge's vocabulary rather than Steam's. Mirrors
+ * `ConnectorGame` in `src/lib/connectors/types.ts`, deliberately and identically.
+ */
+export interface SteamGame {
+  /** The Steam appid, as a string — Cartridge's external ids are always strings. */
+  appid: string;
+  title: string;
+  /**
+   * Total minutes played. Steam does report this, so `0` is a true zero (owned, never
+   * launched) and is not the same thing as `null` (platform doesn't report playtime).
+   */
+  minutesPlayed: number | null;
+  lastPlayedAt?: number;
+  imageUrl?: string;
+}
+
+export interface SteamAchievements {
+  appid: string;
+  /** `null` when the game has no achievements at all — a fact, not a failure. */
+  achievements: { earned: number; total: number } | null;
+}
+
+export interface SteamLibraryResponse {
+  games: SteamGame[];
+}
+
+export interface SteamAchievementsResponse {
+  results: SteamAchievements[];
+}
+
+/** IGDB games resolved from Steam appids, keyed by appid. Unmatched appids are absent. */
+export interface SteamMatchResponse {
+  matches: Record<string, GameMetadata>;
 }

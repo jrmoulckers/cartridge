@@ -45,6 +45,22 @@ PlayStation does not report playtime. Cartridge stores that as `null` and render
 "Not reported". Writing `0h` would be a small lie that quietly poisons every statistic
 built on top of it.
 
+Steam is the other half of the same rule: a game you own and have never launched is a real
+`0`, and it is shown as `0`. Unknown and none are different facts and Cartridge never
+conflates them.
+
+### Connecting a platform is a proposal, not an event
+
+A Steam library can be eleven hundred games. Sync reads it, works out what would change, and
+**shows you before writing anything**: what's new, what you already own and will simply gain
+a Steam link, what couldn't be identified. You choose the shelf new games land on — Backlog
+by default, because an unplayed library is a backlog.
+
+Running it again changes nothing. Playtime, last-played and achievements are refreshed;
+ratings, reviews, notes, statuses, dates and shelves are yours and are never written by a
+sync. Disconnecting removes the account and the platform's numbers, and leaves everything you
+wrote exactly where it was.
+
 ## Ratings
 
 - **Five stars, half steps.** The familiar Goodreads scale, and the one most people can use
@@ -81,7 +97,7 @@ Cartridge is deliberately **not**:
 | --- | --- |
 | **1 — local core** ✅ | Shelves, manual entry, ratings, Markdown reviews and notes, dates, replays, tags, search and filter, JSON backup/restore, full offline operation. |
 | **2 — the bridge** ✅ | Cloudflare Worker with IGDB search and metadata, KV-cached. Real covers, genres, release dates. The connector interface, with no connectors. |
-| 3 — Steam | The first connector: owned games, playtime, achievements. |
+| **3 — Steam** ✅ | The first connector: Steam sign-in via OpenID, owned games, playtime, achievements, and a review step before anything is written. |
 | 4 — Xbox | Xbox library and achievements. |
 | 5 — PlayStation | PSN library and trophies (no playtime — see above). |
 | 6 — Nintendo | Nintendo, within whatever the platform actually permits. |

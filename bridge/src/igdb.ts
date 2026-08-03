@@ -11,7 +11,16 @@
  * returns it to the client.
  */
 import type { Env, GameMetadata, Platform } from './types';
-import { readCache, writeCache, searchKey, gameKey, SEARCH_TTL_S, GAME_TTL_S } from './cache';
+import {
+  readCache,
+  writeCache,
+  searchKey,
+  gameKey,
+  steamMatchKey,
+  SEARCH_TTL_S,
+  GAME_TTL_S,
+  STEAM_MATCH_TTL_S,
+} from './cache';
 
 const TOKEN_KEY = 'twitch:token:v1';
 const TOKEN_URL = 'https://id.twitch.tv/oauth2/token';
@@ -208,4 +217,63 @@ export async function getGame(env: Env, igdbId: number): Promise<GameMetadata | 
   const game = normalize(rows[0]);
   await writeCache(env, key, game, GAME_TTL_S);
   return game;
+}
+
+/**
+ * Resolve Steam appids to IGDB games in bulk.
+ *
+ * IGDB carries Steam's own ids in `external_games`, so this is a lookup rather than a
+ * guess — which is exactly what a library import needs. Matching a thousand owned games by
+ * title would be a thousand fuzzy comparisons and a handful of confident mistakes; matching
+ * them by the id Valve already assigned is neither.
+ *
+ * Keyed and cached per appid (a public fact about a game, not about a player), so a second
+ * sync costs nothing and a shared appid between two users is served from one entry.
+ * Unmatched appids are cached as misses too, so the tail is only paid for once.
+ */
+export async function matchSteamAppids(
+  env: Env,
+  appids: string[],
+): Promise<Record<string, GameMetadata>> {
+  const matches: Record<string, GameMetadata> = {};
+  const missing: string[] = [];
+
+  for (const appid of appids) {
+    const cached = await readCache<{ game: GameMetadata | null }>(env, steamMatchKey(appid));
+    if (cached) {
+      if (cached.game) matches[appid] = cached.game;
+    } else {
+      missing.push(appid);
+    }
+  }
+
+  if (!missing.length) return matches;
+
+  // `external_games` rows carry the appid and a nested game, so one query covers the batch.
+  const list = missing.map((id) => `"${id}"`).join(',');
+  const rows = await query<{ uid?: string; game?: IgdbGame }>(
+    env,
+    'external_games',
+    `fields uid,game.id,game.name,game.summary,game.first_release_date,game.cover.image_id,` +
+      `game.genres.name,game.platforms.id,game.involved_companies.developer,` +
+      `game.involved_companies.publisher,game.involved_companies.company.name; ` +
+      `where category = ${EXTERNAL_STEAM} & uid = (${list}); limit ${missing.length};`,
+  );
+
+  const found = new Set<string>();
+  for (const row of rows) {
+    if (!row.uid || !row.game?.id) continue;
+    const game = normalize(row.game);
+    matches[row.uid] = game;
+    found.add(row.uid);
+    await writeCache(env, steamMatchKey(row.uid), { game }, STEAM_MATCH_TTL_S);
+  }
+
+  // Remember the misses too — an appid IGDB doesn't know (a delisted demo, a soundtrack)
+  // will not start being known tomorrow, and re-asking every sync is pure waste.
+  for (const appid of missing) {
+    if (!found.has(appid)) await writeCache(env, steamMatchKey(appid), { game: null }, STEAM_MATCH_TTL_S);
+  }
+
+  return matches;
 }
