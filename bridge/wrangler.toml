@@ -1,0 +1,22 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "cartridge-bridge"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# Metadata cache. Nothing user-specific is ever written here — only IGDB responses keyed
+# by the search term or game id, plus the app-level Twitch token. See README.md.
+[[kv_namespaces]]
+binding = "METADATA"
+id = "replace-with-your-kv-namespace-id"
+
+[vars]
+# Comma-separated exact origins allowed to call this worker. There is no wildcard: an
+# origin that isn't listed gets no CORS headers and no data.
+ALLOWED_ORIGINS = "http://localhost:5173"
+
+# Secrets (never in this file — set with `wrangler secret put`):
+#   TWITCH_CLIENT_ID
+#   TWITCH_CLIENT_SECRET
+
+[observability]
+enabled = true
