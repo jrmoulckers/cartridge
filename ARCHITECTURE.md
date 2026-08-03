@@ -96,7 +96,9 @@ future sync layer drops in without a migration.
 
 `credentials` (added in v2) is deliberately outside the backup envelope. A backup is a file
 people email themselves and drop in cloud storage; an account credential does not belong in
-one, and re-connecting a platform takes two clicks.
+one, and re-connecting a platform takes two clicks. The visible cost is that a restore brings
+back platform links with no account behind them, so `needsReconnect` derives that state from
+the library and shows a reconnect prompt rather than letting a sync silently do nothing.
 
 Deletes are **tombstoned cascades**: removing a game marks the game, its entry, its links
 and its stats as deleted rather than dropping rows, so a restore on another device learns
@@ -119,6 +121,13 @@ PWA cannot hold one.
   facts about a game, not about a person.
 - **Hardening**: exact-match CORS allowlist, `GET` only, bounded input, per-IP throttle, one
   error envelope, no upstream stack traces.
+
+The allowlist stops browsers, not `curl` — `Origin` is a header, and a header is whatever the
+sender says it is. So a deployed bridge is, in practice, an open Steam and IGDB proxy backed
+by the deployer's keys for anyone who learns the URL and an allowed origin. Closing that needs
+real authentication, which needs an account system Cartridge deliberately doesn't have.
+`bridge/README.md`'s "Residual risk" section spells this out so nobody deploys it without
+knowing.
 
 **No cache key contains a SteamID, and no user's library is ever written to KV.** A library
 and its playtime are personal, and the whole point of the bridge is that it brokers keys, not
@@ -171,6 +180,7 @@ merges two games and takes a rating and a review with it.
 | A Steam profile is private | A named error state explaining which setting to change, with a link straight to it — not a generic toast. |
 | Steam rate-limits mid-sync | Achievements stop being fetched; the library import finishes with what it has. |
 | A game fails to import | It's listed as failed in the per-title results. The other nine hundred still land. |
+| A backup is restored on a new device | The library comes back whole; platform links with no credential behind them raise a reconnect prompt instead of a sync that silently does nothing. |
 | A backup file is wrong | The envelope check rejects it before anything is written. |
 
 ## The shared layer
@@ -202,6 +212,7 @@ a point-in-time copy rather than an automatically synced one. See `vendor/README
 | `connectors/registry.test.ts` | A throwing connector degrades exactly one platform. |
 | `connectors/sync.test.ts` | The phase-3 rules: an owned game gains a link instead of duplicating, a second sync is a no-op, user-authored data is never written, a real `0` stays `0` and an unknown stays `null`. |
 | `connectors/steam.test.ts` | Steam's failure modes, with `fetch` stubbed: private profile, rate limit, garbage response, a game with no achievements. |
+| `stores/connectors.test.ts` | The reconnect prompt: links without a credential ask for a reconnect, a disconnect doesn't, and it clears itself. |
 | `storage/backup.test.ts` | A foreign or newer file is rejected before anything is written. |
 | `offline.test.ts` | The whole local journey, with `fetch` stubbed to reject. |
 | `router.test.ts` | Deep links resolve, unknown paths don't. |

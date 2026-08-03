@@ -29,6 +29,8 @@
     connectionsLoaded,
     connectSteam,
     disconnect,
+    linkedGameCounts,
+    needsReconnect,
     prepareSync,
     refreshConnections,
     resetSync,
@@ -98,7 +100,15 @@
       await refreshLibrary();
       const counts = countBackup(pending);
       pending = null;
-      showToast(`Restored ${counts.games} games`, 'success');
+      showToast(
+        // The restore brought links back but not the account behind them. Say so now rather
+        // than letting them find out when a sync they didn't run doesn't happen.
+        $needsReconnect.length
+          ? `Restored ${counts.games} games — reconnect your platforms below to resume syncing`
+          : `Restored ${counts.games} games`,
+        'success',
+        $needsReconnect.length ? 6000 : undefined,
+      );
     } catch {
       error = 'The restore failed. Your library has not been changed.';
     } finally {
@@ -120,6 +130,8 @@
   let steamNotice = $state('');
 
   const steam = $derived($connections.steam);
+  const steamNeedsReconnect = $derived($needsReconnect.includes('steam'));
+  const steamLinkedCount = $derived($linkedGameCounts.steam ?? 0);
   const syncing = $derived($syncState.phase === 'fetching' || $syncState.phase === 'matching');
   const showImport = $derived(
     $syncState.platform === 'steam' &&
@@ -241,7 +253,8 @@
       </p>
       <p class="muted">
         Restoring <strong>replaces</strong> everything currently in this browser. Cartridge will
-        download a copy of your current library first, just in case.
+        download a copy of your current library first, just in case. Platform connections
+        aren’t included in a backup — you’ll reconnect them afterwards.
       </p>
       <div class="row wrap">
         <button type="button" class="btn danger" onclick={confirmRestore} disabled={busy}>
@@ -350,6 +363,26 @@
         Steam needs a bridge: its API has no browser access and requires a server-side key.
         Set one above and this button turns on.
       </p>
+    {/if}
+
+    {#if steamNeedsReconnect}
+      <div class="notice">
+        <p>
+          <strong>{steamLinkedCount}</strong>
+          {steamLinkedCount === 1 ? 'game in your library is' : 'games in your library are'}
+          linked to Steam, but this device isn’t connected to it.
+        </p>
+        <p class="muted">
+          Account connections aren’t part of a backup — on purpose, so a backup file never
+          carries an account with it. Everything you wrote came across fine; reconnecting just
+          starts playtime and achievements updating again.
+        </p>
+        <div class="row wrap">
+          <button type="button" class="btn primary" onclick={connect} disabled={!$bridgeUrl}>
+            Reconnect Steam
+          </button>
+        </div>
+      </div>
     {/if}
 
     {#if steamNotice}
