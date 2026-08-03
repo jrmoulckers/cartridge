@@ -8,7 +8,7 @@ on:
 
 # Least privilege at the top level. NOTE: a top-level `permissions:` block zeroes
 # every scope it does not name, including for called workflows, so any job that
-# needs more must re-declare it (see `pr-title` below).
+# needs more must re-declare it (see `lint` below).
 permissions:
   contents: read
 
@@ -50,37 +50,25 @@ jobs:
       output-dir: dist
       bundle-budget-kb: 2048
 
-  # Conventional-Commits PR titles. This is the one part of reusable-ci-lint we can
-  # use today: that workflow runs its lint and format steps unconditionally, and
-  # cartridge has no ESLint/Prettier (the @jrm/eslint-config and @jrm/prettier-config
-  # presets have no transport to member repos). Calling it with empty commands fails
-  # the run at startup, so the title check is inlined here. Swap this job for
-  # reusable-ci-lint.yml@main once this repo has real lint/format commands.
-  pr-title:
-    name: Semantic PR Title
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  # Conventional-Commits PR titles, via the backbone. Cartridge has no ESLint or
+  # Prettier — the @jrm/eslint-config and @jrm/prettier-config presets have no
+  # transport to member repos — so both commands are passed as empty strings and
+  # the workflow's `lint` job self-skips, leaving only the title check. Give this
+  # job real commands once the repo has lint/format scripts; nothing else changes.
+  lint:
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@main
+    # Required: the top-level `permissions:` above zeroes every scope it does not
+    # name, and the title check needs `pull-requests: read`. Omitting this is a
+    # startup_failure with no readable log.
     permissions:
       contents: read
       pull-requests: read
-    steps:
-      - name: Validate PR title
-        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          types: |
-            feat
-            fix
-            docs
-            style
-            refactor
-            test
-            chore
-            ci
-            perf
-          requireScope: false
+    with:
+      node-version: '22'
+      package-manager: npm
+      lint-command: ''
+      format-check-command: ''
+      semantic-pr-title: true
 
   # The bridge is a separate package with its own toolchain.
   bridge:
