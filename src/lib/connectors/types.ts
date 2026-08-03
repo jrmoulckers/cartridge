@@ -105,6 +105,13 @@ export interface FetchOptions {
 export type ConnectorErrorKind =
   /** Credentials are missing, rejected or expired — the user must reconnect. */
   | 'auth'
+  /**
+   * The credential is fine, but the account's privacy settings hide what we asked for.
+   * Distinct from `auth` on purpose: reconnecting will not help, and telling someone to
+   * sign in again when the real fix is a privacy toggle sends them in a circle. Steam's
+   * private profile is the common case; carry a {@link ConnectorError.helpUrl} with it.
+   */
+  | 'private'
   /** The platform said "slow down". Retry after `retryAfterMs`. */
   | 'rate-limit'
   /** The bridge or the platform was unreachable. Usually transient. */
@@ -122,18 +129,24 @@ export class ConnectorError extends Error {
   readonly kind: ConnectorErrorKind;
   readonly platform: Platform;
   readonly retryAfterMs?: number;
+  /**
+   * Where the user can fix this themselves — the exact settings page, not a homepage.
+   * The UI renders it as a link without knowing which platform produced it.
+   */
+  readonly helpUrl?: string;
 
   constructor(
     platform: Platform,
     kind: ConnectorErrorKind,
     message: string,
-    options?: { retryAfterMs?: number; cause?: unknown },
+    options?: { retryAfterMs?: number; cause?: unknown; helpUrl?: string },
   ) {
     super(message, { cause: options?.cause });
     this.name = 'ConnectorError';
     this.platform = platform;
     this.kind = kind;
     this.retryAfterMs = options?.retryAfterMs;
+    this.helpUrl = options?.helpUrl;
   }
 }
 
@@ -162,11 +175,18 @@ export interface Connector {
   fetchRecent(options: FetchOptions): Promise<Page<ConnectorGame>>;
 
   /**
-   * Achievements for one game, or for everything when `externalId` is omitted.
-   * Connectors whose `capabilities.achievements` is false return an empty page.
+   * Achievements for a bounded set of games.
+   *
+   * Phase 3 amended this: it originally said "or for everything when `externalId` is
+   * omitted", which no real platform can honour. Steam is strictly one HTTP call per
+   * appid, so "everything" is a thousand requests, not a query. Callers therefore ask for
+   * the games they care about — one via `externalId`, several via `externalIds` — and a
+   * connector given neither returns an empty page rather than fetching the world.
+   *
+   * Connectors whose `capabilities.achievements` is false always return an empty page.
    */
   fetchAchievements(
-    options: FetchOptions & { externalId?: string },
+    options: FetchOptions & { externalId?: string; externalIds?: string[] },
   ): Promise<Page<ConnectorAchievements>>;
 
   /** Optional: revoke tokens and forget device state. */

@@ -8,7 +8,7 @@
  */
 import { derived, writable, get } from 'svelte/store';
 import { settings } from '../stores/settings';
-import type { GameMetadata, SearchResponse } from './types';
+import type { BridgeError, GameMetadata, SearchResponse, SteamMatchResponse } from './types';
 import { rememberSearch, recallSearch, rememberGame, recallGame } from './cache';
 
 /** How long any single bridge request may take before it is abandoned. */
@@ -115,4 +115,125 @@ export async function checkBridge(): Promise<boolean> {
   const ok = health?.ok === true;
   bridgeAvailable.set(ok);
   return ok;
+}
+
+/**
+ * IGDB games for a batch of Steam appids, keyed by appid.
+ *
+ * Degrades to `{}` like everything else here: an import that can't reach IGDB still works,
+ * it just falls back to Steam's own titles and header images. Unmatched appids are simply
+ * absent from the result, which is the caller's cue to keep the game rather than guess.
+ */
+export async function matchSteamAppids(
+  appids: string[],
+  signal?: AbortSignal,
+): Promise<Record<string, GameMetadata>> {
+  if (!appids.length) return {};
+  const data = await request<SteamMatchResponse>(
+    `/igdb/by-steam?appids=${appids.join(',')}`,
+    signal,
+  );
+  return data?.matches ?? {};
+}
+
+// ── The strict client ───────────────────────────────────────────────────────
+
+/**
+ * What went wrong, in enough detail for a connector to turn it into a `ConnectorError`.
+ * `status: 0` means no response arrived at all.
+ */
+export interface BridgeFailure {
+  status: number;
+  /** The envelope's `error` code, or `network` when nothing came back. */
+  error: string;
+  message: string;
+  helpUrl?: string;
+  retryAfterMs?: number;
+}
+
+export type BridgeResult<T> = { ok: true; value: T } | { ok: false; failure: BridgeFailure };
+
+/**
+ * The same transport as {@link request}, but it reports failures instead of swallowing
+ * them.
+ *
+ * Metadata lookup degrades silently because "no cover art" is not worth a sentence. A
+ * connector is the opposite: "your Steam profile is private" is the single most useful
+ * thing the app can say, and losing it to a `null` would be a bug. Both live here so there
+ * is still exactly one place in the app that calls `fetch`.
+ */
+export async function bridgeRequest<T>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<BridgeResult<T>> {
+  const base = get(bridgeUrl);
+  if (!base) {
+    return {
+      ok: false,
+      failure: {
+        status: 0,
+        error: 'no-bridge',
+        message: 'No metadata bridge is configured, so Cartridge can’t reach Steam.',
+      },
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const onAbort = () => controller.abort();
+  signal?.addEventListener('abort', onAbort);
+
+  try {
+    const response = await fetch(base + path, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+      credentials: 'omit',
+      mode: 'cors',
+    });
+
+    if (response.ok) {
+      bridgeAvailable.set(true);
+      return { ok: true, value: (await response.json()) as T };
+    }
+
+    bridgeAvailable.set(true);
+    // The envelope is the contract, but a proxy or a cold worker can still return HTML.
+    let body: BridgeError | null = null;
+    try {
+      body = (await response.json()) as BridgeError;
+    } catch {
+      body = null;
+    }
+    const retryAfter = Number(response.headers.get('retry-after'));
+    return {
+      ok: false,
+      failure: {
+        status: response.status,
+        error: body?.error ?? 'upstream',
+        message: body?.message ?? 'The bridge could not answer that right now.',
+        helpUrl: body?.helpUrl,
+        retryAfterMs: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : undefined,
+      },
+    };
+  } catch {
+    if (!signal?.aborted) bridgeAvailable.set(false);
+    return {
+      ok: false,
+      failure: {
+        status: 0,
+        error: 'network',
+        message: signal?.aborted
+          ? 'That sync was cancelled.'
+          : 'The bridge could not be reached. Everything local still works.',
+      },
+    };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+  }
+}
+
+/** The bridge URL a browser navigation should use, or '' when there is no bridge. */
+export function bridgeBase(): string {
+  return get(bridgeUrl);
 }

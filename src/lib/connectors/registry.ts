@@ -127,7 +127,7 @@ export function fetchRecent(
 /** `fetchAchievements` for one platform, boundaried. */
 export function fetchAchievements(
   platform: Platform,
-  options: FetchOptions & { externalId?: string },
+  options: FetchOptions & { externalId?: string; externalIds?: string[] },
 ): Promise<Outcome<Page<ConnectorAchievements>>> {
   return run(platform, (c) => c.fetchAchievements(options));
 }

@@ -13,6 +13,7 @@ import type {
   Entry,
   Game,
   ID,
+  Platform,
   PlatformLink,
   Record_,
   SessionStat,
@@ -24,7 +25,7 @@ import { uid, normalizeTitle } from '../util';
 import { reportStorageError } from '../stores/storage';
 
 export const DB_NAME = 'cartridge';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 interface CartridgeDB extends DBSchema {
   games: { key: string; value: Game; indexes: { bySortTitle: string; byIgdbId: number } };
@@ -37,6 +38,15 @@ interface CartridgeDB extends DBSchema {
   shelves: { key: string; value: Shelf; indexes: { byOrder: number } };
   sessionStats: { key: string; value: SessionStat; indexes: { byGame: string } };
   meta: { key: string; value: { key: string; value: unknown } };
+  /**
+   * Platform credentials, one row per platform. Its own store rather than a `meta` key for
+   * one reason: **backups must never carry a credential**. A backup is a file people email
+   * themselves and drop in cloud storage; a Steam ID is mild, but the OAuth tokens phases
+   * 4–6 will put here are not, and the right time to get that boundary right is before
+   * there is anything sensitive in it. `getAllForBackup` and `replaceAll` skip this store,
+   * so restoring a backup means reconnecting — which is the correct trade.
+   */
+  credentials: { key: string; value: StoredCredentials };
 }
 
 let dbp: Promise<IDBPDatabase<CartridgeDB>> | null = null;
@@ -69,6 +79,10 @@ function db(): Promise<IDBPDatabase<CartridgeDB>> {
           stats.createIndex('byGame', 'gameId');
 
           database.createObjectStore('meta', { keyPath: 'key' });
+        }
+        if (oldVersion < 2) {
+          // Phase 3. Additive: an existing v1 database keeps every row it had.
+          database.createObjectStore('credentials', { keyPath: 'platform' });
         }
       },
       // Another tab holds an older connection open and blocks the upgrade, or the
@@ -313,6 +327,68 @@ export async function setMeta(key: string, value: unknown): Promise<void> {
   await (await db()).put('meta', { key, value: raw(value) });
 }
 
+// ── Credentials ─────────────────────────────────────────────────────────────
+
+/**
+ * One platform's credential as it sits on the device. `values` is whatever that connector
+ * needs — for Steam, a single SteamID64.
+ *
+ * These never leave the device except to the bridge, per request, and they are deliberately
+ * excluded from backups. See the store's declaration above.
+ */
+export interface StoredCredentials {
+  platform: Platform;
+  values: Record<string, string | number>;
+  connectedAt: number;
+  /** When a sync last completed against this credential. */
+  syncedAt?: number;
+}
+
+export async function getCredentials(platform: Platform): Promise<StoredCredentials | undefined> {
+  return (await db()).get('credentials', platform);
+}
+
+export async function getAllCredentials(): Promise<StoredCredentials[]> {
+  return (await db()).getAll('credentials');
+}
+
+export async function setCredentials(value: StoredCredentials): Promise<void> {
+  await (await db()).put('credentials', raw(value));
+}
+
+/** Forget a platform's credential. Nothing else is touched — see `stores/connectors.ts`. */
+export async function clearCredentials(platform: Platform): Promise<void> {
+  await (await db()).delete('credentials', platform);
+}
+
+// ── Platform links, in bulk ─────────────────────────────────────────────────
+
+/**
+ * Tombstone every link and stat for one platform — what disconnecting means.
+ *
+ * Deliberately narrow. Games, entries, ratings, reviews, notes and shelf placement are the
+ * user's own work and survive a disconnect untouched; only the platform-sourced rows go.
+ * Returns how many rows were affected so the UI can say something true.
+ */
+export async function clearPlatformData(
+  platform: Platform,
+): Promise<{ links: number; stats: number }> {
+  const database = await db();
+  const now = Date.now();
+  const tx = database.transaction(['platformLinks', 'sessionStats'], 'readwrite');
+
+  const linkStore = tx.objectStore('platformLinks');
+  const linkRows = (await linkStore.index('byPlatform').getAll(platform)).filter((l) => !l.deleted);
+  for (const link of linkRows) await linkStore.put(raw({ ...link, deleted: now, updatedAt: now }));
+
+  const statStore = tx.objectStore('sessionStats');
+  const statRows = (await statStore.getAll()).filter((s) => s.platform === platform && !s.deleted);
+  for (const stat of statRows) await statStore.put(raw({ ...stat, deleted: now, updatedAt: now }));
+
+  await tx.done;
+  return { links: linkRows.length, stats: statRows.length };
+}
+
 // ── Bulk (backup / restore) ─────────────────────────────────────────────────
 
 export interface DbSnapshot {
@@ -328,6 +404,9 @@ export interface DbSnapshot {
  * Everything in the database, **tombstones included** — the raw material for a backup.
  * The live getters above hide tombstones; a backup must keep them so deletions survive a
  * restore on another device.
+ *
+ * `credentials` is deliberately absent, and so it stays: a backup is a file people share,
+ * and a platform credential has no business travelling in one.
  */
 export async function getAllForBackup(): Promise<DbSnapshot> {
   const database = await db();
@@ -345,6 +424,8 @@ export async function getAllForBackup(): Promise<DbSnapshot> {
 /** Replace the whole database with a snapshot. Used by restore. */
 export async function replaceAll(snapshot: DbSnapshot): Promise<void> {
   const database = await db();
+  // `credentials` is not in this list on purpose: a restore must not clear the connection
+  // you are sitting in, and no backup can supply one anyway.
   const names = ['games', 'entries', 'platformLinks', 'shelves', 'sessionStats', 'meta'] as const;
   const tx = database.transaction(names, 'readwrite');
   for (const name of names) await tx.objectStore(name).clear();

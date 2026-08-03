@@ -29,8 +29,8 @@ wrong, however convenient it is.
 flowchart TB
     subgraph device["The user's device — everything that matters"]
         UI["Svelte 5 UI<br/>pages + components"]
-        Stores["Stores<br/>library · shelves · settings · toast"]
-        DB[("IndexedDB 'cartridge'<br/>games · entries · platformLinks<br/>shelves · sessionStats · meta")]
+        Stores["Stores<br/>library · shelves · settings · toast · connectors"]
+        DB[("IndexedDB 'cartridge' (v2)<br/>games · entries · platformLinks<br/>shelves · sessionStats · credentials · meta")]
         Backup["Backup / restore<br/>one JSON file the user owns"]
         SW["Service worker<br/>app shell precache"]
 
@@ -44,18 +44,20 @@ flowchart TB
     end
 
     subgraph cf["Cloudflare"]
-        Bridge["bridge/ — stateless Worker<br/>GET /health · /igdb/search · /igdb/game/:id"]
-        KV[("KV 'METADATA'<br/>public IGDB data + app token<br/>no user data, ever")]
+        Bridge["bridge/ — stateless Worker<br/>/health · /igdb/* · /steam/*"]
+        KV[("KV 'METADATA'<br/>public IGDB data + app token<br/>+ Steam schemas keyed by appid<br/>no user data, ever")]
     end
 
     IGDB["IGDB / Twitch API"]
-    Plat["Steam · Xbox · PlayStation · Nintendo<br/>(phases 3–6)"]
+    Plat["Steam Web API + OpenID"]
+    Soon["Xbox · PlayStation · Nintendo<br/>(phases 4–6)"]
 
     UI -.optional.-> Meta --> Bridge
     Stores -.optional.-> Conn --> Bridge
     Bridge <--> KV
     Bridge --> IGDB
-    Bridge -.phases 3–6.-> Plat
+    Bridge --> Plat
+    Bridge -.phases 4–6.-> Soon
 ```
 
 The dotted edges are the whole design: everything outside `device` can be deleted and the
@@ -71,13 +73,13 @@ product still does its job.
 | Stores | `src/lib/stores/*` | The only thing components talk to for data. Writes go to `db` first, then refresh. |
 | Pure logic | `src/lib/library/*`, `markdown.ts`, `util.ts`, `metadata/match.ts` | No DOM, no IO. Unit-tested directly. |
 | Metadata | `src/lib/metadata/*` | The only code in the app that makes a network request. |
-| Connectors | `src/lib/connectors/*` | Interface + error boundary. No implementations yet. |
+| Connectors | `src/lib/connectors/*` | Interface + error boundary + implementations. `sync.ts` is pure; `apply.ts` is the only writer. |
 | UI | `src/lib/components/*`, `src/lib/pages/*` | Presentation. Never reaches past a store. |
 | Bridge | `bridge/` | Separate deployable, own tsconfig, own release cadence. |
 
 ## Data model
 
-IndexedDB database `cartridge`, version 1. Every record carries `id`, `createdAt`,
+IndexedDB database `cartridge`, version 2. Every record carries `id`, `createdAt`,
 `updatedAt` and an optional `deleted` tombstone — the per-entity last-writer-wins shape
 `score-king` uses. Nothing merges yet, but backups already round-trip tombstones, so a
 future sync layer drops in without a migration.
@@ -89,7 +91,12 @@ future sync layer drops in without a migration.
 | `entries` | `id` | `byGame`, `byStatus`, `byUpdated` | The user's relationship to a game. |
 | `shelves` | `id` | `byOrder` | Five built-ins plus custom. |
 | `sessionStats` | `id` | `byGame` | Synced playtime, last-played, achievements. |
+| `credentials` | `platform` | — | Platform credentials — for Steam, a 64-bit account id. **Excluded from backup and restore.** |
 | `meta` | `key` | — | Schema version and app-level odds and ends. |
+
+`credentials` (added in v2) is deliberately outside the backup envelope. A backup is a file
+people email themselves and drop in cloud storage; an account credential does not belong in
+one, and re-connecting a platform takes two clicks.
 
 Deletes are **tombstoned cascades**: removing a game marks the game, its entry, its links
 and its stats as deleted rather than dropping rows, so a restore on another device learns
@@ -107,11 +114,50 @@ PWA cannot hold one.
   never returned to the client.
 - **Normalization**: IGDB responses are mapped to Cartridge's `GameMetadata` in the worker.
   The app never sees an IGDB field name, so an upstream schema change is a bridge deploy.
-- **Cache**: search 24h, game 7d in KV; `Cache-Control` echoed to the browser.
+- **Cache**: search 24h, game 7d in KV; `Cache-Control` echoed to the browser. Steam
+  achievement schemas and appid → IGDB mappings cache for 30 days, keyed by appid — public
+  facts about a game, not about a person.
 - **Hardening**: exact-match CORS allowlist, `GET` only, bounded input, per-IP throttle, one
   error envelope, no upstream stack traces.
 
+**No cache key contains a SteamID, and no user's library is ever written to KV.** A library
+and its playtime are personal, and the whole point of the bridge is that it brokers keys, not
+that it holds data. Steam library and recent-games calls pass straight through.
+
 See `bridge/README.md` for the secrets and how to obtain them.
+
+## Connectors
+
+A connector answers four questions about a platform — who you are, what you own, what you've
+played lately, and how far through the achievements you are — and nothing else. The registry
+wraps every call in a boundary that turns a throw into a value, so a platform that is down,
+rate-limited or returning nonsense degrades that platform's tab and nothing else.
+
+Syncing is deliberately two steps:
+
+1. **Plan** — `connectors/sync.ts`, pure. Takes the library, what the platform reports and
+   what IGDB matched, and returns a `SyncPlan`: what would be added, what already exists and
+   would gain a link, what is unchanged, what couldn't be identified. No DOM, no IndexedDB,
+   no network — which is why the rules that matter can be proven rather than promised.
+2. **Apply** — `connectors/apply.ts`, a thin writer. Creates games, links and stats; creates
+   an `Entry` for a genuinely new game and **never modifies an existing one**. A plan has no
+   vocabulary for changing a rating, a review, a status or a shelf, so it cannot.
+
+Identification runs in descending order of trust: an existing platform link, then a shared
+IGDB id, then `metadata/match.ts`'s conservative title matcher. `null` is a good answer — an
+unrecognised game becomes a new row, which is a small annoyance, where a wrong match silently
+merges two games and takes a rating and a review with it.
+
+### Steam (phase 3)
+
+| Piece | Where |
+| --- | --- |
+| Sign-in | Steam OpenID 2.0, verified in the worker. The app redirects to `/steam/login`, Steam returns to `/steam/return`, and the bridge answers by redirecting back with `#steam_id=…` in the fragment — which browsers never send to a server. |
+| Verification | `openid.mode`, `op_endpoint`, `return_to` and a `check_authentication` round-trip to Steam that must answer `is_valid:true`. The redirect's own parameters are never trusted. |
+| Credential | A 64-bit SteamID. That is the entire secret, and it is public information. |
+| Data | `GetOwnedGames`, `GetRecentlyPlayedGames`, `GetPlayerAchievements` + `GetSchemaForGame`. |
+| Matching | `/igdb/by-steam` resolves appids through IGDB's `external_games`, so matching is near-exact rather than by title. |
+| Private profiles | Steam answers `{"response":{}}` with HTTP 200. The bridge detects it and returns `403 steam-private` with a help URL; the app shows the exact privacy setting to change. |
 
 ## Failure modes, and what the user sees
 
@@ -122,6 +168,9 @@ See `bridge/README.md` for the secrets and how to obtain them.
 | Bridge down or slow | 8s timeout, one retry, then an empty result and "add it by hand". |
 | IndexedDB unavailable | A persistent banner says so, out loud, before the user types a review that won't survive. |
 | One connector throws | That platform shows as degraded. Every other platform, and the whole local app, is unaffected. |
+| A Steam profile is private | A named error state explaining which setting to change, with a link straight to it — not a generic toast. |
+| Steam rate-limits mid-sync | Achievements stop being fetched; the library import finishes with what it has. |
+| A game fails to import | It's listed as failed in the per-title results. The other nine hundred still land. |
 | A backup file is wrong | The envelope check rejects it before anything is written. |
 
 ## The shared layer
@@ -151,6 +200,8 @@ a point-in-time copy rather than an automatically synced one. See `vendor/README
 | `library/search.test.ts` | Search, facets, and the "unknown sorts last" rule. |
 | `metadata/match.test.ts` | Title matching is conservative — it returns null rather than merging two different games. |
 | `connectors/registry.test.ts` | A throwing connector degrades exactly one platform. |
+| `connectors/sync.test.ts` | The phase-3 rules: an owned game gains a link instead of duplicating, a second sync is a no-op, user-authored data is never written, a real `0` stays `0` and an unknown stays `null`. |
+| `connectors/steam.test.ts` | Steam's failure modes, with `fetch` stubbed: private profile, rate limit, garbage response, a game with no achievements. |
 | `storage/backup.test.ts` | A foreign or newer file is rejected before anything is written. |
 | `offline.test.ts` | The whole local journey, with `fetch` stubbed to reject. |
 | `router.test.ts` | Deep links resolve, unknown paths don't. |

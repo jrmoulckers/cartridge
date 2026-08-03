@@ -17,6 +17,7 @@ ALLOWED_ORIGINS = "http://localhost:5173"
 # Secrets (never in this file — set with `wrangler secret put`):
 #   TWITCH_CLIENT_ID
 #   TWITCH_CLIENT_SECRET
+#   STEAM_API_KEY
 
 [observability]
 enabled = true

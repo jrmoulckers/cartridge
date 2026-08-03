@@ -21,6 +21,20 @@
     type Backup,
   } from '../storage/backup';
   import { bridgeAvailable, bridgeUrl, checkBridge } from '../metadata/igdb';
+  import SteamImport from '../components/SteamImport.svelte';
+  import { readSteamResult, steamLoginUrl } from '../connectors/steam-auth';
+  import { STEAM_PRIVACY_URL } from '../connectors/steam';
+  import {
+    connections,
+    connectionsLoaded,
+    connectSteam,
+    disconnect,
+    prepareSync,
+    refreshConnections,
+    resetSync,
+    syncState,
+  } from '../stores/connectors';
+  import { onMount } from 'svelte';
 
   const THEMES: { value: Theme; label: string }[] = [
     { value: 'dark', label: 'Dark' },
@@ -98,6 +112,59 @@
     checking = true;
     await checkBridge();
     checking = false;
+  }
+
+  // ── Platforms ─────────────────────────────────────────────────────────────
+
+  let confirmingDisconnect = $state(false);
+  let steamNotice = $state('');
+
+  const steam = $derived($connections.steam);
+  const syncing = $derived($syncState.phase === 'fetching' || $syncState.phase === 'matching');
+  const showImport = $derived(
+    $syncState.platform === 'steam' &&
+      ($syncState.phase === 'reviewing' ||
+        $syncState.phase === 'applying' ||
+        $syncState.phase === 'done'),
+  );
+
+  /**
+   * On arriving back from Steam, read the verified id out of the fragment and store it.
+   * `readSteamResult` is a pure look at `location.hash` — no network — so this stays inside
+   * the offline guarantee even though it runs on every visit to Settings.
+   */
+  onMount(() => {
+    void (async () => {
+      const outcome = readSteamResult();
+      if (outcome?.kind === 'connected') {
+        await connectSteam(outcome.steamId);
+        showToast('Steam connected', 'success');
+      } else if (outcome?.kind === 'failed') {
+        steamNotice = outcome.message;
+      }
+      await refreshConnections();
+    })();
+  });
+
+  function connect() {
+    const url = steamLoginUrl();
+    if (!url) {
+      steamNotice = 'Set a bridge URL above first — Steam sign-in goes through it.';
+      return;
+    }
+    window.location.href = url;
+  }
+
+  async function syncSteam() {
+    steamNotice = '';
+    await prepareSync('steam');
+  }
+
+  async function confirmDisconnect() {
+    confirmingDisconnect = false;
+    const counts = await disconnect('steam');
+    resetSync();
+    showToast(`Steam disconnected — ${counts.links} links removed`, 'success');
   }
 </script>
 
@@ -227,6 +294,129 @@
   </p>
 </section>
 
+<section class="card stack" aria-labelledby="platforms-h">
+  <h2 id="platforms-h">Platforms <span class="pill">Optional</span></h2>
+  <p class="muted">
+    Connecting a platform imports what you own and how long you've played it. Cartridge works
+    exactly as well with nothing connected — this only saves typing.
+  </p>
+
+  <div class="platform">
+    <div class="row spread wrap">
+      <div class="grow">
+        <h3>Steam</h3>
+        {#if !$connectionsLoaded}
+          <p class="muted status">Checking…</p>
+        {:else if steam}
+          <p class="muted status">
+            Connected as {steam.account}.
+            {#if steam.syncedAt}
+              Last synced {new Date(steam.syncedAt).toLocaleDateString()}.
+            {:else}
+              Not synced yet.
+            {/if}
+          </p>
+        {:else}
+          <p class="muted status">
+            Signs in through Steam itself. Cartridge never sees your password — only your
+            public account number.
+          </p>
+        {/if}
+      </div>
+
+      <div class="row wrap">
+        {#if steam}
+          <button type="button" class="btn primary" onclick={syncSteam} disabled={syncing}>
+            {syncing ? 'Reading your library…' : 'Sync now'}
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            onclick={() => (confirmingDisconnect = true)}
+            disabled={syncing}
+          >
+            Disconnect
+          </button>
+        {:else}
+          <button type="button" class="btn primary" onclick={connect} disabled={!$bridgeUrl}>
+            Connect Steam
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    {#if !$bridgeUrl}
+      <p class="muted status">
+        Steam needs a bridge: its API has no browser access and requires a server-side key.
+        Set one above and this button turns on.
+      </p>
+    {/if}
+
+    {#if steamNotice}
+      <p class="error" role="alert">{steamNotice}</p>
+    {/if}
+
+    {#if syncing}
+      <p class="muted status" aria-live="polite">
+        {$syncState.phase === 'fetching'
+          ? 'Asking Steam what you own…'
+          : `Identifying games… ${$syncState.done} of ${$syncState.total}`}
+      </p>
+    {/if}
+
+    {#if $syncState.platform === 'steam' && $syncState.error}
+      <div class="notice" role="alert">
+        <p>{$syncState.error}</p>
+        {#if $syncState.helpUrl === STEAM_PRIVACY_URL}
+          <p class="muted">
+            Steam only shares a library when the profile allows it. Open
+            <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
+              your Steam privacy settings
+            </a>
+            and set <strong>Game details</strong> to <strong>Public</strong>. You can set it back
+            afterwards — Cartridge keeps what it imported.
+          </p>
+        {:else if $syncState.helpUrl}
+          <p class="muted">
+            <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
+              How to fix this
+            </a>
+          </p>
+        {/if}
+      </div>
+    {/if}
+
+    {#if confirmingDisconnect}
+      <div class="confirm">
+        <p>Disconnect Steam?</p>
+        <p class="muted">
+          This removes your Steam account number and the Steam playtime and achievement figures
+          from your library. <strong>Your games, ratings, reviews, notes and shelves stay
+          exactly as they are</strong> — they're yours, and they have nothing to do with Steam.
+        </p>
+        <div class="row wrap">
+          <button type="button" class="btn danger" onclick={confirmDisconnect}>
+            Disconnect Steam
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            onclick={() => (confirmingDisconnect = false)}
+          >
+            Keep it connected
+          </button>
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <p class="muted status">Xbox, PlayStation and Nintendo are still to come.</p>
+</section>
+
+{#if showImport}
+  <SteamImport />
+{/if}
+
 <style>
   .confirm {
     padding: var(--spacing-md);
@@ -243,5 +433,22 @@
   .status {
     margin: 0;
     font-size: var(--font-size-overline);
+  }
+  .platform h3 {
+    margin: 0 0 var(--spacing-xs);
+  }
+  .platform > * + * {
+    margin-top: var(--spacing-sm);
+  }
+  .notice {
+    padding: var(--spacing-md);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius-sm);
+  }
+  .notice p {
+    margin: 0 0 var(--spacing-sm);
+  }
+  .notice p:last-child {
+    margin-bottom: 0;
   }
 </style>

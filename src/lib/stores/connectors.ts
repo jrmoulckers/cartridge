@@ -1,0 +1,296 @@
+/**
+ * Connections and syncing, as the UI sees them.
+ *
+ * This store is the only place that knows the whole sequence: hold a credential, ask a
+ * connector what the platform says, look the appids up in IGDB, build a plan, show it to
+ * the user, and — only if they say yes — write it. Components read stores; they never call
+ * a connector, a bridge or the database directly.
+ *
+ * Two things it is careful about:
+ *
+ * - **Every connector call goes through the registry**, so a platform that fails degrades
+ *   that platform and nothing else. Nothing in this file rethrows into a component.
+ * - **A large library must not freeze the app.** Work is chunked and yields to the event
+ *   loop between batches, and progress is a store so the screen can show it.
+ */
+import { writable, get } from 'svelte/store';
+import type { Achievements, ID, Platform, Status } from '../types';
+import * as db from '../storage/db';
+import { library, refreshLibrary } from './library';
+import { fetchLibrary as boundedFetchLibrary, fetchAchievements, getConnector } from '../connectors/registry';
+import { ConnectorError, type Credentials } from '../connectors/types';
+import { ACHIEVEMENT_BATCH, STEAM_PRIVACY_URL } from '../connectors/steam';
+import { matchSteamAppids } from '../metadata/igdb';
+import type { GameMetadata } from '../metadata/types';
+import { applyPlan, type SyncResultRow } from '../connectors/apply';
+import { emptyPlan, planSync, type SyncPlan } from '../connectors/sync';
+
+/** How many appids go to the bridge's IGDB lookup at once. Matches its own cap. */
+const MATCH_BATCH = 100;
+/** Titles written between yields. Big enough to be quick, small enough to stay responsive. */
+const APPLY_CHUNK = 25;
+/**
+ * How many games get an achievement lookup during a sync. Achievements cost one upstream
+ * call each, so a full library would be a thousand requests and a rate-limit; the most
+ * recently played are the ones anyone actually looks at.
+ */
+const ACHIEVEMENT_LIMIT = 40;
+
+// ── Connection state ────────────────────────────────────────────────────────
+
+export interface Connection {
+  platform: Platform;
+  connectedAt: number;
+  syncedAt?: number;
+  /** A display handle, e.g. the Steam ID. Never a token. */
+  account?: string;
+}
+
+export const connections = writable<Record<string, Connection>>({});
+/** False until the first read resolves, so the UI can tell "not connected" from "loading". */
+export const connectionsLoaded = writable(false);
+
+/**
+ * Load stored credentials. Reads IndexedDB only — no network, so this is safe to call on
+ * boot without breaking the offline guarantee.
+ */
+export async function refreshConnections(): Promise<void> {
+  try {
+    const rows = await db.getAllCredentials();
+    const next: Record<string, Connection> = {};
+    for (const row of rows) {
+      next[row.platform] = {
+        platform: row.platform,
+        connectedAt: row.connectedAt,
+        syncedAt: row.syncedAt,
+        account: typeof row.values.steamId === 'string' ? row.values.steamId : undefined,
+      };
+    }
+    connections.set(next);
+  } catch {
+    connections.set({});
+  } finally {
+    connectionsLoaded.set(true);
+  }
+}
+
+export async function connectSteam(steamId: string): Promise<void> {
+  await db.setCredentials({
+    platform: 'steam',
+    values: { steamId },
+    connectedAt: Date.now(),
+  });
+  await refreshConnections();
+}
+
+export interface DisconnectResult {
+  links: number;
+  stats: number;
+}
+
+/**
+ * Disconnect a platform.
+ *
+ * Removes the credential and tombstones that platform's links and stats. **Games, entries,
+ * ratings, reviews, notes, shelves and dates are untouched** — the user wrote those, and
+ * they have nothing to do with whether an account is attached. The UI's warning says
+ * exactly this, and it is true because of `clearPlatformData`'s narrowness, not because the
+ * copy is careful.
+ */
+export async function disconnect(platform: Platform): Promise<DisconnectResult> {
+  const credentials = await db.getCredentials(platform);
+  const connector = getConnector(platform);
+  if (connector?.disconnect && credentials) {
+    try {
+      await connector.disconnect(credentials.values as Credentials);
+    } catch {
+      // Nothing remote to clean up is the normal case; a failure here must not stop the
+      // local removal, which is the part the user actually asked for.
+    }
+  }
+
+  await db.clearCredentials(platform);
+  const counts = await db.clearPlatformData(platform);
+  await refreshConnections();
+  await refreshLibrary();
+  return counts;
+}
+
+// ── Sync ────────────────────────────────────────────────────────────────────
+
+export type SyncPhase = 'idle' | 'fetching' | 'matching' | 'reviewing' | 'applying' | 'done';
+
+export interface SyncState {
+  platform: Platform | null;
+  phase: SyncPhase;
+  done: number;
+  total: number;
+  /** What is being worked on right now, for a live progress line. */
+  current?: string;
+  plan?: SyncPlan;
+  results?: SyncResultRow[];
+  /** A sentence about a failure, scoped to this platform. */
+  error?: string;
+  /** Where the user can fix it — a private profile's privacy page, for instance. */
+  helpUrl?: string;
+}
+
+const IDLE: SyncState = { platform: null, phase: 'idle', done: 0, total: 0 };
+
+export const syncState = writable<SyncState>({ ...IDLE });
+
+export function resetSync(): void {
+  syncState.set({ ...IDLE });
+  pendingAchievements = {};
+}
+
+/** Achievement progress collected during the most recent `prepareSync`. */
+let pendingAchievements: Record<string, Achievements> = {};
+
+/** Hand the event loop back so a long import never blocks paint or input. */
+const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+function patch(next: Partial<SyncState>): void {
+  syncState.update((state) => ({ ...state, ...next }));
+}
+
+/**
+ * Fetch a platform's library and work out what would change — **without writing anything**.
+ *
+ * Stops at `reviewing` on purpose. Hundreds of games appearing unannounced is exactly the
+ * behaviour this phase is meant to avoid, so the plan is a value the user is shown and has
+ * to accept.
+ */
+export async function prepareSync(platform: Platform, signal?: AbortSignal): Promise<void> {
+  syncState.set({ ...IDLE, platform, phase: 'fetching' });
+
+  const stored = await db.getCredentials(platform);
+  if (!stored) {
+    patch({ phase: 'idle', error: 'That platform isn’t connected.' });
+    return;
+  }
+  const credentials = stored.values as Credentials;
+
+  // Boundaried: a throwing connector is returned as a value, never as a rejection.
+  const outcome = await boundedFetchLibrary(platform, { credentials, signal });
+  if (!outcome.ok) {
+    patch({ phase: 'idle', ...describe(outcome.error) });
+    return;
+  }
+
+  const games = outcome.value.items;
+  if (!games.length) {
+    patch({ phase: 'reviewing', plan: emptyPlan(platform), total: 0, done: 0 });
+    return;
+  }
+
+  // Match appids to IGDB in batches. This degrades quietly: with no bridge or a failed
+  // lookup the import still runs, just with the platform's own titles and art.
+  patch({ phase: 'matching', total: games.length, done: 0 });
+
+  const matches: Record<string, GameMetadata> = {};
+  for (let i = 0; i < games.length; i += MATCH_BATCH) {
+    if (signal?.aborted) return;
+    const batch = games.slice(i, i + MATCH_BATCH).map((g) => g.externalId);
+    Object.assign(matches, await matchSteamAppids(batch, signal));
+    patch({ done: Math.min(i + MATCH_BATCH, games.length) });
+    await yieldToUi();
+  }
+
+  const achievements = await collectAchievements(platform, credentials, games, signal);
+
+  const plan = planSync(get(library), games, { platform, metadata: matches, achievements });
+
+  // Stash the achievements alongside the plan so `commitSync` writes the same data the
+  // review described, rather than re-fetching and possibly showing different numbers.
+  pendingAchievements = achievements;
+  patch({ phase: 'reviewing', plan, done: games.length, current: undefined });
+}
+
+/**
+ * Achievements for the games most likely to be looked at.
+ *
+ * Bounded hard. One upstream call per game means a full library is a rate-limit waiting to
+ * happen, and a number next to a game nobody has opened in four years is worth very little.
+ * A failure here is swallowed: achievements are the least important thing a sync produces
+ * and must never be the reason one fails.
+ */
+async function collectAchievements(
+  platform: Platform,
+  credentials: Credentials,
+  games: { externalId: string; minutesPlayed: number | null; lastPlayedAt?: number }[],
+  signal?: AbortSignal,
+): Promise<Record<string, Achievements>> {
+  const connector = getConnector(platform);
+  if (!connector?.capabilities.achievements) return {};
+
+  const candidates = games
+    .filter((g) => (g.minutesPlayed ?? 0) > 0)
+    .sort((a, b) => (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0))
+    .slice(0, ACHIEVEMENT_LIMIT)
+    .map((g) => g.externalId);
+  if (!candidates.length) return {};
+
+  const out: Record<string, Achievements> = {};
+  for (let i = 0; i < candidates.length; i += ACHIEVEMENT_BATCH) {
+    if (signal?.aborted) break;
+    const batch = candidates.slice(i, i + ACHIEVEMENT_BATCH);
+    const result = await fetchAchievements(platform, { credentials, externalIds: batch, signal });
+    // A rate-limit here would otherwise cost the whole sync. Stop asking; keep what we have.
+    if (!result.ok) break;
+    for (const row of result.value.items) out[row.externalId] = row.achievements;
+    await yieldToUi();
+  }
+  return out;
+}
+
+export interface CommitOptions {
+  /** Where new games land. Defaults to Backlog at the call site. */
+  status: Status;
+  shelfIds?: ID[];
+}
+
+/**
+ * Write the reviewed plan.
+ *
+ * Applies in chunks with a yield between them, so importing a two-thousand-game library
+ * shows a moving progress bar instead of a frozen tab.
+ */
+export async function commitSync(options: CommitOptions): Promise<void> {
+  const state = get(syncState);
+  const plan = state.plan;
+  if (!plan || !state.platform) return;
+
+  const total = plan.adds.length + plan.updates.length;
+  patch({ phase: 'applying', done: 0, total, results: undefined, error: undefined });
+
+  let sinceYield = 0;
+  const results = await applyPlan(plan, get(library), {
+    status: options.status,
+    shelfIds: options.shelfIds,
+    achievements: pendingAchievements,
+    onProgress: (done, count, title) => patch({ done, total: count, current: title }),
+    onYield: async () => {
+      if (++sinceYield >= APPLY_CHUNK) {
+        sinceYield = 0;
+        await yieldToUi();
+      }
+    },
+  });
+
+  await refreshLibrary();
+
+  const stored = await db.getCredentials(plan.platform);
+  if (stored) await db.setCredentials({ ...stored, syncedAt: Date.now() });
+  await refreshConnections();
+
+  patch({ phase: 'done', results, current: undefined, done: total, total });
+}
+
+/** A connector error, translated into what the UI needs to show. */
+function describe(error: ConnectorError): { error: string; helpUrl?: string } {
+  if (error.kind === 'private') {
+    return { error: error.message, helpUrl: error.helpUrl ?? STEAM_PRIVACY_URL };
+  }
+  return { error: error.message, helpUrl: error.helpUrl };
+}

@@ -6,6 +6,11 @@
  * are the search term and the game id, both of which the user typed and neither of which
  * is tied to a person.
  *
+ * Phase 3 added Steam and did not weaken that. A Steam appid's achievement schema and its
+ * IGDB match are public facts about a *game*, identical for every player, so they cache.
+ * A user's owned-games list, playtime and achievement progress do not — there is no cache
+ * key anywhere in this worker that contains a SteamID.
+ *
  * IGDB's rate limit is four requests a second for everyone using a given client id, so the
  * cache is not an optimisation — it is what makes the bridge viable at all.
  */
@@ -15,9 +20,19 @@ import type { Env } from './types';
 export const SEARCH_TTL_S = 24 * 60 * 60;
 /** A specific game barely changes once released. */
 export const GAME_TTL_S = 7 * 24 * 60 * 60;
+/**
+ * A shipped game's achievement list is about the most static thing Steam knows, and it is
+ * identical for every player — so it caches for a month.
+ */
+export const SCHEMA_TTL_S = 30 * 24 * 60 * 60;
+/** Which IGDB game a Steam appid is stays true for as long as both exist. */
+export const STEAM_MATCH_TTL_S = 30 * 24 * 60 * 60;
 
 export const searchKey = (query: string) => `search:v1:${query.toLowerCase()}`;
 export const gameKey = (igdbId: number) => `game:v1:${igdbId}`;
+/** Keyed by appid — public, identical for every user, and never by SteamID. */
+export const schemaKey = (appid: string) => `steam:schema:v1:${appid}`;
+export const steamMatchKey = (appid: string) => `steam:igdb:v1:${appid}`;
 
 export async function readCache<T>(env: Env, key: string): Promise<T | null> {
   try {
