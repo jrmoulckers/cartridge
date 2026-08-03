@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Type-check, test and build the PWA via the shared studio workflow.
+  web:
+    uses: ./.github/workflows/reusable-ci-web.yml
+    with:
+      node-version: '22'
+      package-manager: npm
+      typecheck-command: npm run check
+      test-command: npm test
+      build-command: npm run build
+
+  # Conventional-Commits PR titles. Cartridge has no ESLint/Prettier yet — the
+  # @jrm/eslint-config and @jrm/prettier-config presets are not published; adopt
+  # them (and set the two commands below) once they are.
+  lint:
+    uses: ./.github/workflows/reusable-ci-lint.yml
+    with:
+      lint-command: ''
+      format-check-command: ''
+      semantic-pr-title: true
+
+  # The bridge is a separate package with its own toolchain.
+  bridge:
+    name: Bridge typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - working-directory: bridge
+        run: npm install --no-audit --no-fund
+      - working-directory: bridge
+        run: npm run typecheck

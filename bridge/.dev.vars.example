@@ -1,0 +1,13 @@
+# Local development only. Copy to `.dev.vars` and fill in your own values.
+#
+#   cp .dev.vars.example .dev.vars
+#
+# `.dev.vars` is git-ignored and must never be committed. In production these are set with
+# `wrangler secret put TWITCH_CLIENT_ID` / `wrangler secret put TWITCH_CLIENT_SECRET`.
+#
+# Both values come from a Twitch application (IGDB's API is authenticated through Twitch):
+# https://dev.twitch.tv/console/apps — see README.md for the walkthrough.
+
+TWITCH_CLIENT_ID="your-twitch-client-id"
+TWITCH_CLIENT_SECRET="your-twitch-client-secret"
+ALLOWED_ORIGINS="http://localhost:5173"
