@@ -90,8 +90,10 @@ reports reusable workflows as "native" but never writes them, so wiring and inpu
 - **No shared lint/format presets.** `@jrm/eslint-config`, `@jrm/prettier-config`,
   `@jrm/tsconfig` and `@jrm/tailwind-preset` have no transport to member repos — the sync
   engine vendors `packages/tokens/dist` only, and nothing is published to a registry (see
-  studio's README transport table). Cartridge therefore carries no ESLint/Prettier yet, and
-  `ci.yml` inlines the semantic-PR-title check instead of calling `reusable-ci-lint`.
+  studio's README transport table). Cartridge therefore carries no ESLint/Prettier yet, so
+  `ci.yml` calls `reusable-ci-lint` with `lint-command` and `format-check-command` set to
+  empty strings — its lint job self-skips and only the semantic-PR-title check runs. Give
+  those two inputs real commands once the repo has lint/format scripts.
 - **Credential boundary is a Worker, not a Next.js server.** `principles/backend.md` #4
   ("clients cannot be trusted to gate access — default deny") and `principles/security.md`
   #1/#4 require third-party credentials to sit behind a first-party server. Of the four
