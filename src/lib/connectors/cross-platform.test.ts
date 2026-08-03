@@ -10,6 +10,10 @@
  * The other three blocks are the phase's other promises, in the same order the brief put
  * them: matching refuses rather than guesses, a failing Xbox is Xbox's problem alone, and
  * an unreported playtime is still unreported after a full round trip through the database.
+ *
+ * And one more, added after review: the duplicate that arrives from *behind*. A game Xbox
+ * couldn't identify is a game the next platform might not recognise either — the same
+ * failure as the headline case, reached by a route nobody was watching.
  */
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -205,6 +209,107 @@ describe('an ambiguous title', () => {
     expect(plan.adds).toHaveLength(1);
     expect(plan.adds[0].unmatched).toBe(true);
     expect(plan.adds[0].title).toBe('Some Compilation Nobody Indexes');
+  });
+});
+
+// ── The duplicate arriving from behind ──────────────────────────────────────
+
+describe('a game imported before anything could identify it', () => {
+  it('is claimed by the next platform that can, not duplicated by it', async () => {
+    // The exact sequence that makes this a real risk rather than a theoretical one: Xbox
+    // matches by title, so its awkward tail lands unidentified. Steam then resolves the same
+    // game cleanly by appid — and if the unidentified row can't be recognised, the user ends
+    // up with two Hades, one rating on each.
+    await sync('xbox', [game({ externalId: '1963298018', title: 'Hades', minutesPlayed: 300 })]);
+
+    let items = get(library);
+    expect(items).toHaveLength(1);
+    expect(items[0].game.igdbId).toBeUndefined();
+    expect(items[0].game.source).toBe('manual');
+
+    const { plan } = await sync(
+      'steam',
+      [game({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200 })],
+      { '1145360': metadata(1145, 'Hades') },
+    );
+
+    expect(plan.adds).toHaveLength(0);
+    expect(plan.updates).toHaveLength(1);
+
+    items = get(library);
+    expect(items).toHaveLength(1);
+    expect(items[0].links.map((l) => l.platform).sort()).toEqual(['steam', 'xbox']);
+    expect(items[0].totalMinutes).toBe(1500);
+
+    // And the door is now shut for good: the row has an identity, so the *third* platform
+    // gets a lookup rather than another go at the fuzzy matcher that nearly failed here.
+    expect(items[0].game.igdbId).toBe(1145);
+    expect(items[0].game.source).toBe('igdb');
+    expect(items[0].game.coverUrl).toBe('https://images.test/1145-big.jpg');
+    expect(items[0].game.genres).toEqual(['Action']);
+  });
+
+  it('reports the upgrade instead of pretending it was a routine link', async () => {
+    await sync('xbox', [game({ externalId: '1963298018', title: 'Hades' })]);
+    const { results } = await sync(
+      'steam',
+      [game({ externalId: '1145360', title: 'Hades' })],
+      { '1145360': metadata(1145, 'Hades') },
+    );
+
+    expect(results[0].outcome).toBe('linked');
+    expect(results[0].detail).toContain('identified');
+  });
+
+  it('fills blanks and replaces nothing', async () => {
+    // A game the user typed themselves, with their own title and their own cover. A later
+    // sync learns what it is — and that is a reason to fill in the summary, not a licence to
+    // rewrite the two fields they chose.
+    const added = await addGame({ title: 'Hades', status: 'playing' });
+    await db.putGame({ ...added!.game, coverUrl: 'https://mine.test/hades.jpg' });
+    await refreshLibrary();
+
+    await sync('steam', [game({ externalId: '1145360', title: 'Hades' })], {
+      '1145360': { ...metadata(1145, 'HADES: Definitive Edition'), summary: 'A rogue-lite.' },
+    });
+
+    const [item] = get(library);
+    expect(item.game.title).toBe('Hades');
+    expect(item.game.coverUrl).toBe('https://mine.test/hades.jpg');
+    // The blanks, though, are worth having.
+    expect(item.game.igdbId).toBe(1145);
+    expect(item.game.summary).toBe('A rogue-lite.');
+  });
+
+  it('leaves a game alone entirely when IGDB disagrees about what it is', async () => {
+    // The title matcher found a row that already claims to be a different game. That is a
+    // disagreement about identity, and the only safe response to a disagreement is to write
+    // nothing — not to pick the newer answer because it arrived last.
+    const added = await addGame({ title: 'Hades', status: 'playing' });
+    await db.putGame({ ...added!.game, igdbId: 999, source: 'igdb' });
+    await refreshLibrary();
+
+    await sync('xbox', [game({ externalId: '1963298018', title: 'Hades' })], {
+      '1963298018': metadata(1145, 'Hades'),
+    });
+
+    const [item] = get(library);
+    expect(item.game.igdbId).toBe(999);
+    expect(item.game.genres).toEqual([]);
+  });
+
+  it('enriches once, then goes quiet', async () => {
+    await sync('xbox', [game({ externalId: '1963298018', title: 'Hades' })]);
+    const steam = [game({ externalId: '1145360', title: 'Hades' })];
+    const meta = { '1145360': metadata(1145, 'Hades') };
+
+    await sync('steam', steam, meta);
+    // Idempotency has to survive the new write too: once the gaps are filled there is
+    // nothing left to fill, so the next sync is empty rather than perpetually "updating".
+    const { plan } = await sync('steam', steam, meta);
+    expect(plan.adds).toHaveLength(0);
+    expect(plan.updates).toHaveLength(0);
+    expect(plan.unchanged).toBe(1);
   });
 });
 

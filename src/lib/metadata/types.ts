@@ -84,6 +84,8 @@ export interface SteamMatchResponse {
 /** IGDB games resolved from plain titles, keyed by the title asked about. */
 export interface TitleMatchResponse {
   matches: Record<string, GameMetadata>;
+  /** False when the bridge ran out of IGDB budget partway. Absent on older bridges. */
+  complete?: boolean;
 }
 
 // ── Xbox ────────────────────────────────────────────────────────────────────

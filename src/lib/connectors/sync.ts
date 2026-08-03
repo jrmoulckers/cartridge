@@ -16,6 +16,9 @@
  *    which is a stronger guarantee than remembering not to.
  * 4. **Playtime is copied, never invented.** A real `0` (owned, never launched) survives as
  *    `0`; an absent figure stays `null`.
+ * 5. **A game the library couldn't identify gets *upgraded* by the next platform that can,
+ *    not duplicated by it.** Gaps are filled, values are never replaced. See
+ *    {@link GameEnrichment} — this is rule 1 again, viewed from behind.
  *
  * Because the plan is a value, it is also what the import screen shows the user *before*
  * anything is written. Reviewing a change and applying it are the same object.
@@ -62,6 +65,40 @@ export interface PlannedUpdate {
   confidence: MatchConfidence;
   /** Minutes the library currently records, for a "+3h" line in the review. */
   previousMinutes: number | null;
+  /** Metadata to fill in on a game that has none. See {@link GameEnrichment}. */
+  enrich?: GameEnrichment;
+}
+
+/**
+ * Metadata for a game the library already has but couldn't identify when it arrived.
+ *
+ * This exists to close a back door phase 4 opened. Xbox matches by title, so its awkward tail
+ * gets imported unidentified — Xbox's own name, Xbox's own art, no `igdbId`. Sync Steam a
+ * month later, the same game resolves cleanly through IGDB, and the only thing standing
+ * between the user and two rows for one game is the fuzzy title matcher: the very mechanism
+ * that already failed on this title once. The duplicate the platform-agnostic model exists to
+ * prevent, arriving from behind.
+ *
+ * So a confident identification *upgrades* the row it found rather than walking past it. The
+ * `igdbId` is the part that matters — it turns every future platform's identification of this
+ * game from a judgement into a lookup.
+ *
+ * It fills gaps and only gaps. A field that already has a value is left exactly as it is,
+ * including the title: someone may have typed it themselves, and phase 3's rule that a sync
+ * never overwrites the user's own work does not stop being true because we learned something.
+ */
+export interface GameEnrichment {
+  igdbId?: number;
+  coverUrl?: string;
+  genres?: string[];
+  platforms?: Platform[];
+  releasedAt?: number;
+  developer?: string;
+  publisher?: string;
+  summary?: string;
+  /** Set only alongside an `igdbId`, so provenance never claims more than we know. */
+  source?: Game['source'];
+  fetchedAt?: number;
 }
 
 /** A plan, and the whole vocabulary the applier understands. */
@@ -242,15 +279,21 @@ export function planSync(
     const minutesPlayed =
       game.minutesPlayed ?? (stat?.minutesPlayed != null && stat.minutesPlayed > 0 ? stat.minutesPlayed : null);
 
+    // What this sync now knows about a game the library couldn't identify when it arrived.
+    const enrich = enrichmentFor(item.game, meta);
+
     const nothingChanged =
       link != null &&
       stat != null &&
+      enrich == null &&
       stat.minutesPlayed === minutesPlayed &&
       (stat.lastPlayedAt ?? undefined) === (game.lastPlayedAt ?? undefined) &&
       sameAchievements(stat.achievements, progress[game.externalId]);
 
     // This is the idempotency guarantee, and it is a comparison rather than a promise: a
-    // second sync over unchanged data produces a plan with nothing in it.
+    // second sync over unchanged data produces a plan with nothing in it. Enrichment doesn't
+    // weaken it: once the gaps are filled there is nothing left to fill, so the sync after
+    // the one that enriched a game is empty again.
     if (nothingChanged) {
       plan.unchanged++;
       continue;
@@ -265,6 +308,7 @@ export function planSync(
       newLink: link == null,
       confidence,
       previousMinutes: stat?.minutesPlayed ?? null,
+      enrich,
     });
   }
 
@@ -275,6 +319,46 @@ function sameAchievements(a: Achievements | undefined, b: Achievements | undefin
   if (!a && !b) return true;
   if (!a || !b) return false;
   return a.earned === b.earned && a.total === b.total;
+}
+
+/**
+ * What this sync can honestly add to a game the library already had.
+ *
+ * Returns `undefined` when there is nothing to fill or nothing we are entitled to fill —
+ * which is the common case, because most games are identified the first time they arrive.
+ *
+ * Two refusals worth stating out loud:
+ *
+ * - **A game that already has a different `igdbId` is left completely alone.** Reaching here
+ *   with one means the title matcher picked a row that IGDB thinks is a different game. That
+ *   disagreement is a reason to write nothing, not a reason to pick a side.
+ * - **A field with a value in it is never replaced.** Not the title, not the cover. Filling a
+ *   blank is new knowledge; overwriting is an opinion about someone else's library.
+ */
+export function enrichmentFor(game: Game, meta: GameMetadata | undefined): GameEnrichment | undefined {
+  if (!meta) return undefined;
+  if (game.igdbId != null && game.igdbId !== meta.igdbId) return undefined;
+
+  const enrich: GameEnrichment = {};
+
+  if (game.igdbId == null && meta.igdbId != null) {
+    enrich.igdbId = meta.igdbId;
+    // Provenance follows the id and nothing else. A game whose identity we now know really is
+    // IGDB-sourced, and saying so is what lets a later metadata refresh work on it.
+    enrich.source = 'igdb';
+    enrich.fetchedAt = Date.now();
+  }
+
+  const cover = meta.coverUrlLarge ?? meta.coverUrl;
+  if (!game.coverUrl && cover) enrich.coverUrl = cover;
+  if (!game.genres?.length && meta.genres?.length) enrich.genres = [...meta.genres];
+  if (!game.platforms?.length && meta.platforms?.length) enrich.platforms = [...meta.platforms];
+  if (game.releasedAt == null && meta.releasedAt != null) enrich.releasedAt = meta.releasedAt;
+  if (!game.developer && meta.developer) enrich.developer = meta.developer;
+  if (!game.publisher && meta.publisher) enrich.publisher = meta.publisher;
+  if (!game.summary && meta.summary) enrich.summary = meta.summary;
+
+  return Object.keys(enrich).length ? enrich : undefined;
 }
 
 // ── Deriving records ────────────────────────────────────────────────────────

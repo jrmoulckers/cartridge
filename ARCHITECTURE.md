@@ -165,6 +165,14 @@ IGDB id, then `metadata/match.ts`'s conservative title matcher. `null` is a good
 unrecognised game becomes a new row, which is a small annoyance, where a wrong match silently
 merges two games and takes a rating and a review with it.
 
+The corollary took a review to spot. A game imported *un*identified — no `igdbId`, the
+platform's own title and art — leaves only the fuzzy matcher standing between it and the next
+platform that reports the same game, which is the duplicate the whole model exists to prevent
+arriving from behind. So a confident identification **upgrades the row it finds** rather than
+walking past it: the `igdbId` is stamped on and blank fields are filled, and any field that
+already has a value, including the title, is left exactly as it was. Filling a blank is new
+knowledge; replacing a value is an opinion about someone else's library.
+
 ### Steam (phase 3)
 
 | Piece | Where |
@@ -206,7 +214,8 @@ declared, with the Xbox fact that forced it.
 | Steam rate-limits mid-sync | Achievements stop being fetched; the library import finishes with what it has. |
 | OpenXBL rate-limits mid-sync | Playtime is dropped, the library still imports, and figures a previous sync recorded are kept rather than blanked. |
 | OpenXBL returns nonsense | Rejected as unsupported at the shape check. Xbox degrades; Steam and the local library are untouched — proven in `cross-platform.test.ts`. |
-| A title can't be matched confidently | It imports under its Xbox name and art, and is listed on the import screen for review. Nothing is guessed. |
+| A title can't be matched confidently | It imports under its Xbox name and art, and is listed on the import screen for review. Nothing is guessed, and the next platform that *can* identify it upgrades that row instead of adding a second one. |
+| IGDB rate-limits a first sync | `/igdb/by-title` paces itself under IGDB's limit; if it's throttled anyway it returns what resolved and flags the sync incomplete, so the next run continues against a warmer cache. |
 | A game fails to import | It's listed as failed in the per-title results. The other nine hundred still land. |
 | A backup is restored on a new device | The library comes back whole; platform links with no credential behind them raise a reconnect prompt instead of a sync that silently does nothing. |
 | A backup file is wrong | The envelope check rejects it before anything is written. |

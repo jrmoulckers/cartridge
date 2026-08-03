@@ -316,7 +316,10 @@ export default {
           return fail(origin, 400, 'bad-request', 'Give at least one title.');
         }
         const matches = await matchTitles(env, bounded);
-        return json({ matches }, origin, {}, 24 * 60 * 60);
+        // An incomplete answer is never cached — at the edge or in the browser. Caching "we
+        // got throttled halfway" for a day would turn one bad minute into a day of games the
+        // user is told can't be identified.
+        return json(matches, origin, {}, matches.complete ? 24 * 60 * 60 : 0);
       }
 
       const match = /^\/igdb\/game\/(\d+)$/.exec(url.pathname);

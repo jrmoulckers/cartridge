@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { xboxConnector, isOpenXblKey, isXuid, fetchAccount, OPENXBL_KEY_URL } from './xbox';
+import { matchTitles } from '../metadata/igdb';
 import { ConnectorError, type Credentials } from './types';
 import { registerConnector, getConnector } from './registry';
 import { setBridgeUrl } from '../stores/settings';
@@ -321,5 +322,29 @@ describe('fetchAchievements', () => {
     );
     const page = await xboxConnector.fetchAchievements({ credentials, externalIds: ['1', '2', '3'] });
     expect(page.items).toEqual([{ externalId: '1', achievements: { earned: 3, total: 10 } }]);
+  });
+});
+
+// ── Titles the bridge didn't finish asking about ────────────────────────────
+
+describe('a title lookup that ran out of budget', () => {
+  it('keeps what resolved and reports the rest as unanswered, not unmatched', async () => {
+    // The bridge paces its IGDB searches, and when IGDB throttles it anyway it stops and
+    // says so rather than 502-ing away the titles it already paid for. "We did not finish
+    // asking" and "these games do not exist" are opposite facts, and only one of them is
+    // worth sending a user off to correct thirty rows by hand.
+    fetchMock.mockResolvedValueOnce(
+      reply({ matches: { Hades: { igdbId: 1145, title: 'Hades' } }, complete: false }),
+    );
+
+    const { matches, complete } = await matchTitles(['Hades', 'Halo Infinite']);
+    expect(matches.Hades?.igdbId).toBe(1145);
+    expect(complete).toBe(false);
+  });
+
+  it('is complete when the bridge says nothing, so an older bridge still works', async () => {
+    fetchMock.mockResolvedValueOnce(reply({ matches: {} }));
+    const { complete } = await matchTitles(['Halo Infinite']);
+    expect(complete).toBe(true);
   });
 });
