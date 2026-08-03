@@ -18,6 +18,11 @@ concurrency:
 jobs:
   lint:
     name: Lint
+    # reusable-ci-lint declares `pull-requests: read` for semantic PR-title validation;
+    # a caller may not grant less than a called workflow requests.
+    permissions:
+      contents: read
+      pull-requests: read
     uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@main
     with:
       node-version: '24'
@@ -27,6 +32,8 @@ jobs:
 
   web:
     name: Web CI
+    permissions:
+      contents: read
     uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@main
     with:
       node-version: '24'
@@ -39,6 +46,8 @@ jobs:
     name: Deploy Preview
     needs: web
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
     uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@main
     with:
       node-version: '24'
@@ -53,6 +62,8 @@ jobs:
   perf:
     name: Performance Budget
     needs: web
+    permissions:
+      contents: read
     uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@main
     with:
       node-version: '24'
