@@ -1,0 +1,13 @@
+/*
+ * Global styles.
+ *
+ * Deliberately empty of design values: cartridge consumes @jrm/tokens, which arrive as a
+ * vendored tree via the studio sync PR. Once vendor/@jrm/tokens exists, uncomment the
+ * import below — it is the only place tokens are pulled in.
+ *
+ * @import "../vendor/@jrm/tokens/css/default/index.css";
+ */
+
+:root {
+  color-scheme: light dark;
+}

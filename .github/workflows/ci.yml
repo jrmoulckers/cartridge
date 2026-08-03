@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege by default (studio security principle 4); the reusable workflows
+# raise only what they need.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@main
+    with:
+      node-version: '24'
+      package-manager: pnpm
+      lint-command: pnpm lint
+      format-check-command: pnpm format:check
+
+  web:
+    name: Web CI
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@main
+    with:
+      node-version: '24'
+      package-manager: pnpm
+      typecheck-command: pnpm typecheck
+      test-command: pnpm test
+      build-command: pnpm build
+
+  preview:
+    name: Deploy Preview
+    needs: web
+    if: github.event_name == 'pull_request'
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@main
+    with:
+      node-version: '24'
+      package-manager: pnpm
+      build-command: pnpm build
+      # Next.js is server-rendered: .next carries the build cache, so only the client
+      # asset tree is published as the preview artifact. Swap provider to `custom` (with
+      # preview-command + the DEPLOY_TOKEN secret) once a real host is chosen.
+      output-dir: .next/static
+      provider: artifact
+
+  perf:
+    name: Performance Budget
+    needs: web
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@main
+    with:
+      node-version: '24'
+      package-manager: pnpm
+      build-command: pnpm build
+      # Budget the shipped client bundle, not .next's cache.
+      output-dir: .next/static
+      bundle-budget-kb: 2048
+      # `url` is intentionally omitted: with no deployed URL the workflow skips
+      # Lighthouse CI and enforces the bundle budget only.

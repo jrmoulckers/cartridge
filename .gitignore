@@ -1,0 +1,26 @@
+# Build output and caches
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Local env — never commit secrets (studio security principle 1)
+.env
+.env.*
+!.env.example
+
+# Tooling / editor / OS
+.turbo/
+.vercel/
+.eslintcache
+.DS_Store
+Thumbs.db
+
+# NOTE: vendor/ is intentionally NOT ignored. vendor/@jrm/tokens is delivered as committed
+# files by the studio sync PR and must stay tracked for drift detection to work.

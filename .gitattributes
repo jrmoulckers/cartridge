@@ -1,0 +1,8 @@
+# Normalize line endings to LF everywhere: CI (Linux) runs `prettier --check`, whose
+# default endOfLine is "lf", and the studio sync engine hashes LF-normalized content for
+# drift detection. CRLF checkouts would break both.
+* text=auto eol=lf
+
+# Generated/vendored trees kept out of diffs and language stats.
+pnpm-lock.yaml linguist-generated=true -diff
+vendor/** linguist-vendored=true

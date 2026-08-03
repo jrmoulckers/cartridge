@@ -1,0 +1,8 @@
+# pnpm settings live here as of pnpm 11 (package.json's "pnpm" field is no longer read).
+#
+# Install scripts stay disabled (studio security principle 2.1 — guard install-time
+# execution). `sharp` is Next.js' optional image-optimization binary; declaring it false
+# is an explicit decision, and it keeps `pnpm install --frozen-lockfile` exiting cleanly
+# in CI instead of failing with ERR_PNPM_IGNORED_BUILDS.
+allowBuilds:
+  sharp: false
