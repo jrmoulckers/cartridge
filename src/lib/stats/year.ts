@@ -43,7 +43,7 @@ export const NO_YEARLY_PLAYTIME =
 
 /** Said once on the year page, because it is the sharpest edge in the year rule. */
 export const LAST_PLAYED_IS_LAST =
-  'Platforms report only the *last* time you played a game. Play something again next year and it moves with you, leaving this one.';
+  'Platforms report only the last time you played a game — not every time. Play something again next year and it moves with you, leaving this one.';
 
 /** The year a timestamp falls in, locally. */
 const yearOf = (ms: number): number => new Date(ms).getFullYear();

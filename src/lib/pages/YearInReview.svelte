@@ -210,7 +210,9 @@
     <h2 id="fine-h">The honest small print</h2>
     <ul class="plain">
       <li>{LAST_PLAYED_IS_LAST}</li>
-      <li>{NO_YEARLY_PLAYTIME}</li>
+      {#if review.empty}
+        <li>{NO_YEARLY_PLAYTIME}</li>
+      {/if}
       {#if review.undated}
         <li>
           {pluralize(review.undated, 'game')} in your library

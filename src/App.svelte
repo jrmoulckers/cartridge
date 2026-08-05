@@ -13,8 +13,6 @@
   import AddGame from './lib/pages/AddGame.svelte';
   import GameDetail from './lib/pages/GameDetail.svelte';
   import Shelves from './lib/pages/Shelves.svelte';
-  import Stats from './lib/pages/Stats.svelte';
-  import YearInReview from './lib/pages/YearInReview.svelte';
   import Settings from './lib/pages/Settings.svelte';
   import NotFound from './lib/pages/NotFound.svelte';
 
@@ -78,9 +76,27 @@
       {:else if route.name === 'shelves'}
         <Shelves />
       {:else if route.name === 'stats'}
-        <Stats />
+        <!--
+          Stats and the year in review load on demand. They are the only screens in the app
+          you can go a week without opening, and keeping them out of the first payload keeps
+          the library — the screen people actually launch — as small as it was before this
+          phase. The chunk is precached by the service worker, so it still opens offline.
+        -->
+        {#await import('./lib/pages/Stats.svelte')}
+          <p class="muted" role="status">Working out your numbers…</p>
+        {:then Page}
+          <Page.default />
+        {:catch}
+          <p role="alert">That page couldn’t be loaded. Reload the app and try again.</p>
+        {/await}
       {:else if route.name === 'year'}
-        <YearInReview year={route.params.year} />
+        {#await import('./lib/pages/YearInReview.svelte')}
+          <p class="muted" role="status">Looking back…</p>
+        {:then Page}
+          <Page.default year={route.params.year} />
+        {:catch}
+          <p role="alert">That page couldn’t be loaded. Reload the app and try again.</p>
+        {/await}
       {:else if route.name === 'settings'}
         <Settings />
       {:else}

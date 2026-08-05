@@ -215,6 +215,8 @@
           reason: 'Only genres with three or more rated games — one five-star game isn’t a taste.',
         }}
         noun="rated game"
+        rankBy="detail"
+        scaleMax={5}
         formatDetail={(v) => `${formatRating(v)} ★`}
       />
     {:else}

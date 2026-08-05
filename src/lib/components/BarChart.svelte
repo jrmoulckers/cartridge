@@ -12,19 +12,31 @@
    * makes the shape scannable, and it carries no information the text lacks. Nothing here
    * encodes meaning in colour: there is one bar colour, and length is the variable.
    */
-  import type { Distribution } from '../stats/types';
+  import type { Bucket, Distribution } from '../stats/types';
   import { peak } from '../stats/types';
-  import { distributionSentence, formatCount } from '../stats/format';
+  import { distributionSentence, formatCount, pluralize } from '../stats/format';
 
   interface Props {
     title: string;
     distribution: Distribution;
-    /** Singular noun for the coverage sentence. */
+    /** Singular noun for the coverage sentence and, when ranking by `detail`, the tally. */
     noun?: string;
     /** Show at most this many bars, largest first as the distribution is already ordered. */
     limit?: number;
-    /** Formats the optional secondary figure, e.g. an average rating. */
+    /**
+     * Which figure the chart is *about*. `'detail'` charts rank by the secondary value — an
+     * average rating, say — so the bar has to be drawn from that value too, or the picture
+     * would contradict the title.
+     */
+    rankBy?: 'count' | 'detail';
+    /** Formats the secondary figure, e.g. an average rating. */
     formatDetail?: (value: number) => string;
+    /**
+     * Fixed upper bound for bar length. A rating belongs on its own 0–5 scale: drawn relative
+     * to the largest value instead, a 4.1 next to a 4.3 would look like nothing next to
+     * everything.
+     */
+    scaleMax?: number;
     /** Text when there is nothing to draw. */
     emptyText?: string;
   }
@@ -34,12 +46,20 @@
     distribution,
     noun = 'game',
     limit = 12,
+    rankBy = 'count',
     formatDetail = undefined,
+    scaleMax = undefined,
     emptyText = 'Nothing to show yet.',
   }: Props = $props();
 
   const rows = $derived(distribution.buckets.slice(0, limit));
-  const max = $derived(peak(distribution));
+  const barOf = (b: Bucket) => (rankBy === 'detail' ? (b.detail ?? 0) : b.count);
+  const max = $derived(
+    scaleMax ??
+      (rankBy === 'detail'
+        ? distribution.buckets.reduce((m, b) => Math.max(m, b.detail ?? 0), 0)
+        : peak(distribution)),
+  );
   const hidden = $derived(Math.max(0, distribution.buckets.length - rows.length));
   const note = $derived(distributionSentence(distribution, noun));
   const id = $props.id();
@@ -66,13 +86,21 @@
         <li>
           <span class="key">{bucket.label}</span>
           <span class="track" aria-hidden="true">
-            <span class="bar" style="--w: {scale(bucket.count, max)}"></span>
+            <span class="bar" style="--w: {scale(barOf(bucket), max)}"></span>
           </span>
-          <span class="count">
-            {formatCount(bucket.count)}{#if formatDetail && bucket.detail != null}<span class="detail"
-                >{formatDetail(bucket.detail)}</span
-              >{/if}
-          </span>
+          {#if rankBy === 'detail' && formatDetail}
+            <span class="count">
+              {bucket.detail == null ? '—' : formatDetail(bucket.detail)}<span class="detail"
+                >&nbsp;from {pluralize(bucket.count, noun)}</span
+              >
+            </span>
+          {:else}
+            <span class="count">
+              {formatCount(bucket.count)}{#if formatDetail && bucket.detail != null}<span
+                  class="detail">&nbsp;{formatDetail(bucket.detail)}</span
+                >{/if}
+            </span>
+          {/if}
         </li>
       {/each}
     </ul>
