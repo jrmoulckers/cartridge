@@ -15,6 +15,7 @@ import type {
   ID,
   Platform,
   PlatformLink,
+  PlaytimeObservation,
   Record_,
   SessionStat,
   Shelf,
@@ -25,7 +26,7 @@ import { uid, normalizeTitle } from '../util';
 import { reportStorageError } from '../stores/storage';
 
 export const DB_NAME = 'cartridge';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 interface CartridgeDB extends DBSchema {
   games: { key: string; value: Game; indexes: { bySortTitle: string; byIgdbId: number } };
@@ -47,6 +48,20 @@ interface CartridgeDB extends DBSchema {
    * so restoring a backup means reconnecting — which is the correct trade.
    */
   credentials: { key: string; value: StoredCredentials };
+  /**
+   * Append-only playtime history. See {@link PlaytimeObservation} — the store is written on
+   * every sync and read by nothing yet, on purpose. It is *not* dead code: it is the only
+   * way Cartridge will ever be able to say how many hours a year took, and it can only
+   * answer for the window it has been collecting over, so it collects from now.
+   *
+   * Unlike `credentials`, this **is** carried in a backup. It is the user's own history, and
+   * losing it on a device move would throw away exactly the thing that took time to build.
+   */
+  playtimeObservations: {
+    key: string;
+    value: PlaytimeObservation;
+    indexes: { byLink: [string, string]; byObservedAt: number };
+  };
 }
 
 let dbp: Promise<IDBPDatabase<CartridgeDB>> | null = null;
@@ -83,6 +98,18 @@ function db(): Promise<IDBPDatabase<CartridgeDB>> {
         if (oldVersion < 2) {
           // Phase 3. Additive: an existing v1 database keeps every row it had.
           database.createObjectStore('credentials', { keyPath: 'platform' });
+        }
+        if (oldVersion < 3) {
+          // Additive again — no existing row is touched, read or migrated. The history
+          // starts empty and starts today, which is the whole point of landing it early.
+          const observations = database.createObjectStore('playtimeObservations', {
+            keyPath: 'id',
+          });
+          // Both indexes are the access patterns a delta calculation needs: one link's
+          // readings in order, and every reading in a window. Cheap now, another migration
+          // later.
+          observations.createIndex('byLink', ['platform', 'externalId']);
+          observations.createIndex('byObservedAt', 'observedAt');
         }
       },
       // Another tab holds an older connection open and blocks the upgrade, or the
@@ -222,6 +249,58 @@ export async function putStat(stat: SessionStat): Promise<SessionStat> {
   const next = stamp(stat);
   await (await db()).put('sessionStats', next);
   return next;
+}
+
+// ── Playtime observations ───────────────────────────────────────────────────
+
+/**
+ * Append one reading. There is no update and no delete on purpose: this store only ever
+ * grows, and a row in it is a fact about a moment rather than a value that can go stale.
+ *
+ * A `null` reading is not written — see {@link PlaytimeObservation}. Callers pass what the
+ * platform said and this decides, so no caller has to remember the rule.
+ *
+ * Deliberately quiet on failure. A sync that imported nine hundred games must not be
+ * reported as failed because a history row didn't land; the history is valuable but it is
+ * never the reason the user pressed the button.
+ */
+export async function recordObservation(input: {
+  platform: Platform;
+  externalId: string;
+  minutesPlayed: number | null;
+  observedAt?: number;
+}): Promise<PlaytimeObservation | null> {
+  if (input.minutesPlayed == null) return null;
+  const row: PlaytimeObservation = {
+    id: uid(),
+    platform: input.platform,
+    externalId: input.externalId,
+    minutesPlayed: input.minutesPlayed,
+    observedAt: input.observedAt ?? Date.now(),
+  };
+  try {
+    await (await db()).add('playtimeObservations', raw(row));
+    return row;
+  } catch {
+    return null;
+  }
+}
+
+/** Every reading, oldest first. Exists for tests and for whatever eventually reads this. */
+export async function getAllObservations(): Promise<PlaytimeObservation[]> {
+  return (await db()).getAllFromIndex('playtimeObservations', 'byObservedAt');
+}
+
+/** One platform link's readings, oldest first — the shape a delta calculation wants. */
+export async function getObservationsForLink(
+  platform: Platform,
+  externalId: string,
+): Promise<PlaytimeObservation[]> {
+  const rows = await (await db()).getAllFromIndex('playtimeObservations', 'byLink', [
+    platform,
+    externalId,
+  ]);
+  return rows.sort((a, b) => a.observedAt - b.observedAt);
 }
 
 // ── Shelves ─────────────────────────────────────────────────────────────────
@@ -369,6 +448,10 @@ export async function clearCredentials(platform: Platform): Promise<void> {
  * Deliberately narrow. Games, entries, ratings, reviews, notes and shelf placement are the
  * user's own work and survive a disconnect untouched; only the platform-sourced rows go.
  * Returns how many rows were affected so the UI can say something true.
+ *
+ * `playtimeObservations` survives too, and deliberately. A disconnect says "stop syncing
+ * this", not "that time never happened" — and a user who reconnects later would otherwise
+ * find a hole in their history that nothing can refill.
  */
 export async function clearPlatformData(
   platform: Platform,
@@ -397,6 +480,7 @@ export interface DbSnapshot {
   platformLinks: PlatformLink[];
   shelves: Shelf[];
   sessionStats: SessionStat[];
+  playtimeObservations: PlaytimeObservation[];
   meta: { key: string; value: unknown }[];
 }
 
@@ -406,19 +490,23 @@ export interface DbSnapshot {
  * restore on another device.
  *
  * `credentials` is deliberately absent, and so it stays: a backup is a file people share,
- * and a platform credential has no business travelling in one.
+ * and a platform credential has no business travelling in one. `playtimeObservations` is
+ * deliberately *present* for the mirror-image reason — it is history the user built and
+ * cannot rebuild, so it has to survive a device move.
  */
 export async function getAllForBackup(): Promise<DbSnapshot> {
   const database = await db();
-  const [games, entries, platformLinks, shelves, sessionStats, meta] = await Promise.all([
-    database.getAll('games'),
-    database.getAll('entries'),
-    database.getAll('platformLinks'),
-    database.getAll('shelves'),
-    database.getAll('sessionStats'),
-    database.getAll('meta'),
-  ]);
-  return { games, entries, platformLinks, shelves, sessionStats, meta };
+  const [games, entries, platformLinks, shelves, sessionStats, playtimeObservations, meta] =
+    await Promise.all([
+      database.getAll('games'),
+      database.getAll('entries'),
+      database.getAll('platformLinks'),
+      database.getAll('shelves'),
+      database.getAll('sessionStats'),
+      database.getAll('playtimeObservations'),
+      database.getAll('meta'),
+    ]);
+  return { games, entries, platformLinks, shelves, sessionStats, playtimeObservations, meta };
 }
 
 /** Replace the whole database with a snapshot. Used by restore. */
@@ -426,7 +514,15 @@ export async function replaceAll(snapshot: DbSnapshot): Promise<void> {
   const database = await db();
   // `credentials` is not in this list on purpose: a restore must not clear the connection
   // you are sitting in, and no backup can supply one anyway.
-  const names = ['games', 'entries', 'platformLinks', 'shelves', 'sessionStats', 'meta'] as const;
+  const names = [
+    'games',
+    'entries',
+    'platformLinks',
+    'shelves',
+    'sessionStats',
+    'playtimeObservations',
+    'meta',
+  ] as const;
   const tx = database.transaction(names, 'readwrite');
   for (const name of names) await tx.objectStore(name).clear();
   for (const game of snapshot.games) await tx.objectStore('games').put(raw(game));
@@ -434,6 +530,9 @@ export async function replaceAll(snapshot: DbSnapshot): Promise<void> {
   for (const link of snapshot.platformLinks) await tx.objectStore('platformLinks').put(raw(link));
   for (const shelf of snapshot.shelves) await tx.objectStore('shelves').put(raw(shelf));
   for (const stat of snapshot.sessionStats) await tx.objectStore('sessionStats').put(raw(stat));
+  for (const row of snapshot.playtimeObservations) {
+    await tx.objectStore('playtimeObservations').put(raw(row));
+  }
   for (const row of snapshot.meta) await tx.objectStore('meta').put(raw(row));
   await tx.done;
 }

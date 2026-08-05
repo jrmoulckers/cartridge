@@ -56,6 +56,7 @@ beforeEach(async () => {
     platformLinks: [],
     shelves: [],
     sessionStats: [],
+    playtimeObservations: [],
     meta: [],
   });
   await refreshShelves();

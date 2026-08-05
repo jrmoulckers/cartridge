@@ -7,6 +7,10 @@
  *
  * Cover images are already stored as data URLs in `game.coverData`, so a backup is
  * self-contained and a restored library still shows covers with no network.
+ *
+ * It also carries the playtime observation log. That store is the one thing in the database
+ * a user cannot rebuild — a lifetime total can be re-fetched, but the reading you took last
+ * March cannot — so a device move has to bring it along.
  */
 import * as db from './db';
 import type { DbSnapshot } from './db';
@@ -107,6 +111,9 @@ export function parseBackup(input: unknown): Backup {
     platformLinks: list(d.platformLinks),
     shelves: list(d.shelves),
     sessionStats: list(d.sessionStats),
+    // Absent from every backup written before DB v3, which is exactly why `list` is
+    // forgiving: an older file restores fine and simply starts its history from empty.
+    playtimeObservations: list(d.playtimeObservations),
     meta: list(d.meta),
   };
 

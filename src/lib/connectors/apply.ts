@@ -5,11 +5,12 @@
  * a database; this file's only job is to write what was decided, and to write **nothing
  * else**. Two rules it exists to keep:
  *
- * - It writes `Game`, `PlatformLink` and `SessionStat`, and it creates an `Entry` for a
- *   genuinely new game. It never *modifies* an existing `Entry`. Status, rating, score,
- *   review, notes, dates, replays, tags, shelves and favourite are the user's own work, and
- *   nothing a platform says can overwrite them. It does fill *blank* metadata fields on an
- *   existing `Game` — see `GameEnrichment` — but only ones the planner proved were empty.
+ * - It writes `Game`, `PlatformLink` and `SessionStat`, appends a `PlaytimeObservation`, and
+ *   creates an `Entry` for a genuinely new game. It never *modifies* an existing `Entry`.
+ *   Status, rating, score, review, notes, dates, replays, tags, shelves and favourite are the
+ *   user's own work, and nothing a platform says can overwrite them. It does fill *blank*
+ *   metadata fields on an existing `Game` — see `GameEnrichment` — but only ones the planner
+ *   proved were empty.
  * - It is safe to run twice. Links and stats are matched before being written, so a repeat
  *   apply updates the same rows instead of growing new ones.
  */
@@ -97,6 +98,7 @@ async function applyAdd(
     });
 
     await writeStat(game.id, platform, null, {
+      externalId: add.externalId,
       minutesPlayed: add.minutesPlayed,
       lastPlayedAt: add.lastPlayedAt,
       achievements: options.achievements?.[add.externalId],
@@ -153,6 +155,7 @@ async function applyUpdate(
 
     const stat = item?.stats.find((s) => s.platform === platform) ?? null;
     await writeStat(update.gameId, platform, stat, {
+      externalId: update.externalId,
       minutesPlayed: update.minutesPlayed,
       lastPlayedAt: update.lastPlayedAt,
       achievements: options.achievements?.[update.externalId],
@@ -185,17 +188,28 @@ function describeUpdate(update: PlannedUpdate, platform: Platform): string | und
 }
 
 /**
- * Create or refresh the one stat row for this game and platform.
+ * Create or refresh the one stat row for this game and platform, and append the reading that
+ * produced it to the playtime history.
  *
  * `minutesPlayed` is copied verbatim — a real `0` stays `0`, `null` stays `null`. Existing
  * achievements are kept when a sync didn't fetch any, because "we didn't ask this time" is
  * not the same as "there are none".
+ *
+ * The observation is appended here, at the single point where playtime enters the database,
+ * so there is no path that refreshes a total without also writing down when it was seen.
+ * `SessionStat` keeps only the latest reading — it is a snapshot of now, and overwriting it
+ * is what loses the history the log exists to keep.
  */
 async function writeStat(
   gameId: ID,
   platform: Platform,
   existing: SessionStat | null,
-  next: { minutesPlayed: number | null; lastPlayedAt?: number; achievements?: Achievements },
+  next: {
+    externalId: string;
+    minutesPlayed: number | null;
+    lastPlayedAt?: number;
+    achievements?: Achievements;
+  },
 ): Promise<void> {
   const now = Date.now();
   const base: SessionStat = existing ?? {
@@ -217,5 +231,14 @@ async function writeStat(
     // A stat tombstoned by a previous disconnect comes back to life rather than
     // accumulating a second row for the same game and platform.
     deleted: undefined,
+  });
+
+  // A `null` reading appends nothing — `recordObservation` enforces that, so the rule lives
+  // in one place rather than at every call site.
+  await db.recordObservation({
+    platform,
+    externalId: next.externalId,
+    minutesPlayed: next.minutesPlayed,
+    observedAt: now,
   });
 }

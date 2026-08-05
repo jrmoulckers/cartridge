@@ -83,7 +83,7 @@ product still does its job.
 
 ## Data model
 
-IndexedDB database `cartridge`, version 2. Every record carries `id`, `createdAt`,
+IndexedDB database `cartridge`, version 3. Every record carries `id`, `createdAt`,
 `updatedAt` and an optional `deleted` tombstone — the per-entity last-writer-wins shape
 `score-king` uses. Nothing merges yet, but backups already round-trip tombstones, so a
 future sync layer drops in without a migration.
@@ -94,7 +94,8 @@ future sync layer drops in without a migration.
 | `platformLinks` | `id` | `byGame`, `byPlatform` | Game ↔ Steam appid / Xbox titleId / PSN id / Nintendo id. |
 | `entries` | `id` | `byGame`, `byStatus`, `byUpdated` | The user's relationship to a game. |
 | `shelves` | `id` | `byOrder` | Five built-ins plus custom. |
-| `sessionStats` | `id` | `byGame` | Synced playtime, last-played, achievements. |
+| `sessionStats` | `id` | `byGame` | Synced playtime, last-played, achievements — always the *latest* reading. |
+| `playtimeObservations` | `id` | `byLink`, `byObservedAt` | Append-only history of what each platform reported, and when. **Written on every sync, read by nothing yet — see below.** |
 | `credentials` | `platform` | — | Platform credentials — for Steam a 64-bit account id, for Xbox the user's own OpenXBL API key plus their XUID and gamertag. **Excluded from backup and restore.** |
 | `meta` | `key` | — | Schema version and app-level odds and ends. |
 
@@ -112,6 +113,39 @@ about the deletion too.
 
 The whole library is loaded into memory on boot. A personal games library is small, and
 holding it in memory is what makes search instant and every screen work offline.
+
+### `playtimeObservations` is write-only on purpose — do not remove it
+
+**This store is read by no feature. That is intentional, and it is not dead code.**
+
+Steam and Xbox report a *lifetime* playtime total and a last-played date. Neither windows
+playtime to a period, which is why the year in review refuses to claim hours-played-in-a-year
+(see [Statistics](#statistics-phase-7)). The difference between two readings of a lifetime
+total **is** the playtime between them — so on every sync, at the one point in `apply.ts`
+where playtime enters the database, the reading is appended here alongside the `SessionStat`
+it updates.
+
+The value of this store is strictly a function of how early it started. It can only ever
+answer for the window it has been collecting over, so it collects from v3 onward whether or
+not anything is ready to ask. Deleting it as unused would not free a feature's worth of code;
+it would throw away time that cannot be re-fetched, and reset the clock on the first honest
+"hours this year" to whenever someone re-adds it.
+
+It also repairs a second, quieter loss. A platform reports only the **last** time you played
+a game, so replaying something in 2026 silently erases the evidence that 2025 ever touched
+it. `SessionStat` is overwritten; the observation log remembers.
+
+Four rules hold it together:
+
+| Rule | Why |
+| --- | --- |
+| Append-only — no update, no delete, no tombstone. | A row is a fact about a moment. Editing it would be rewriting history, not correcting it. |
+| Keyed by `platform` + `externalId`, not `gameId`. | It records what the *platform* said, so merging, deleting, re-linking or re-matching a game leaves the history underneath intact. |
+| A `null` reading writes nothing; a real `0` writes a row. | A reading with no number can never take part in a subtraction. A zero is a genuine reading, and the `0` ≠ `null` distinction holds here as everywhere else. |
+| Carried in backups, unlike `credentials`. | It is the one thing in the database a user cannot rebuild — a lifetime total can be re-fetched, last March's reading cannot. |
+
+Nothing is pruned. A row per game per sync is small; if that ever stops being true, collapsing
+runs of identical `minutesPlayed` is the obvious fix and stays available.
 
 ## The bridge
 
@@ -247,7 +281,7 @@ stated on the page rather than hidden:
 | --- | --- |
 | An undated game is in **no** year, and is counted as such. | `createdAt` is a fact about an import, not about playing. Back-filling from it would fill the page with confident nonsense. |
 | `lastPlayedAt` is *last*, not *every* — a 2027 session removes a game from 2026. | It is the only signal the platforms give, and the alternative is not having one. |
-| **Hours played in a year are never claimed.** | Nothing in `SessionStat` windows playtime to a period; the figure does not exist to be computed. The page reports *lifetime* playtime behind the year's games, labelled as such. |
+| **Hours played in a year are never claimed.** | Nothing in `SessionStat` windows playtime to a period; the figure does not exist to be computed. The page reports *lifetime* playtime behind the year's games, labelled as such. `playtimeObservations` is the groundwork for changing that — but only for windows it has been collecting over. |
 
 The same reasoning omits "biggest surprise" (no expectation is ever recorded, so a proxy would
 be fabricated) and any HowLongToBeat-style length estimate (no HLTB integration, and IGDB has
@@ -313,6 +347,8 @@ a point-in-time copy rather than an automatically synced one. See `vendor/README
 | `stats/backlog.test.ts` | Triage keeps "a platform said zero" apart from "nobody said anything", and offers no length-based sort. |
 | `stats/format.test.ts` | A complete measure gets no coverage sentence; a partial one always does. |
 | `stats/local.test.ts` | The whole stats surface computes with `fetch` stubbed to reject. |
+| `storage/observations.test.ts` | The playtime log appends rather than overwrites, ignores `null` readings, keeps real zeros, and survives a disconnect, a game deletion and a backup round trip. |
+| `storage/migration.test.ts` | A real v2 database upgrades to v3 with every existing row — and every rating and review — intact. |
 | `metadata/match.test.ts` | Title matching is conservative — it returns null rather than merging two different games. |
 | `connectors/registry.test.ts` | A throwing connector degrades exactly one platform. |
 | `connectors/sync.test.ts` | The phase-3 rules: an owned game gains a link instead of duplicating, a second sync is a no-op, user-authored data is never written, a real `0` stays `0` and an unknown stays `null`. |

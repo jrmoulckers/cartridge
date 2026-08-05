@@ -314,6 +314,7 @@ describe('applying a plan', () => {
       platformLinks: [],
       shelves: [],
       sessionStats: [],
+      playtimeObservations: [],
       meta: [],
     });
     await refreshShelves();
