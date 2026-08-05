@@ -7,7 +7,7 @@ compatibility_date = "2024-09-23"
 # by the search term or game id, plus the app-level Twitch token. See README.md.
 [[kv_namespaces]]
 binding = "METADATA"
-id = "replace-with-your-kv-namespace-id"
+id = "084b58b24ce94c6897ca2d3bd04d6b95"
 
 [vars]
 # Comma-separated exact origins allowed to call this worker. There is no wildcard: an

@@ -139,8 +139,24 @@ const PLATFORM_BY_ID: Record<number, Platform> = {
   508: 'nintendo',
 };
 
-/** IGDB's external-game category for Steam. */
+/**
+ * IGDB's external-game source for Steam.
+ *
+ * Formerly `external_games.category`, which IGDB deprecated in favour of
+ * `external_game_source`. The numeric id is unchanged; only the field name moved.
+ */
 const EXTERNAL_STEAM = 1;
+
+/**
+ * The game types worth returning from a search: main game, remake, remaster, expanded game,
+ * port. Filtering these in drops DLC, bundles, episodes and mods, which are almost never what
+ * someone means when they type a game's name.
+ *
+ * Formerly `category`, which IGDB deprecated in favour of `game_type`. The ids are the same.
+ * Note that the old name is still *accepted* by IGDB and simply matches nothing, so getting
+ * this wrong costs zero results rather than an error — see the comment on {@link query}.
+ */
+const GAME_TYPES = '(0,8,9,10,11)';
 
 interface IgdbImage {
   image_id?: string;
@@ -161,7 +177,7 @@ interface IgdbGame {
   genres?: { name?: string }[];
   platforms?: { id?: number }[];
   involved_companies?: IgdbCompany[];
-  external_games?: { category?: number; uid?: string }[];
+  external_games?: { external_game_source?: number; uid?: string }[];
 }
 
 /** IGDB serves covers from a CDN with a size token in the path. */
@@ -178,7 +194,7 @@ function normalize(game: IgdbGame): GameMetadata {
   const companies = game.involved_companies ?? [];
   const developer = companies.find((c) => c.developer)?.company?.name;
   const publisher = companies.find((c) => c.publisher)?.company?.name;
-  const steam = game.external_games?.find((e) => e.category === EXTERNAL_STEAM)?.uid;
+  const steam = game.external_games?.find((e) => e.external_game_source === EXTERNAL_STEAM)?.uid;
 
   return {
     igdbId: game.id,
@@ -200,7 +216,7 @@ function normalize(game: IgdbGame): GameMetadata {
 const FIELDS =
   'fields id,name,summary,first_release_date,cover.image_id,genres.name,platforms.id,' +
   'involved_companies.developer,involved_companies.publisher,involved_companies.company.name,' +
-  'external_games.category,external_games.uid;';
+  'external_games.external_game_source,external_games.uid;';
 
 // ── Endpoints ───────────────────────────────────────────────────────────────
 
@@ -209,11 +225,11 @@ export async function searchGames(env: Env, q: string, limit: number): Promise<G
   const cached = await readCache<GameMetadata[]>(env, key);
   if (cached) return cached;
 
-  // `search` is IGDB's relevance search; the category filter drops DLC and bundles, which
+  // `search` is IGDB's relevance search; the game-type filter drops DLC and bundles, which
   // are almost never what someone means when they type a game's name.
   const body =
     `search "${q.replace(/"/g, '')}"; ${FIELDS} ` +
-    `where category = (0,8,9,10,11); limit ${limit};`;
+    `where game_type = ${GAME_TYPES}; limit ${limit};`;
 
   const results = (await query<IgdbGame>(env, 'games', body)).map(normalize);
   await writeCache(env, key, results, SEARCH_TTL_S);
@@ -271,7 +287,7 @@ export async function matchSteamAppids(
     `fields uid,game.id,game.name,game.summary,game.first_release_date,game.cover.image_id,` +
       `game.genres.name,game.platforms.id,game.involved_companies.developer,` +
       `game.involved_companies.publisher,game.involved_companies.company.name; ` +
-      `where category = ${EXTERNAL_STEAM} & uid = (${list}); limit ${missing.length};`,
+      `where external_game_source = ${EXTERNAL_STEAM} & uid = (${list}); limit ${missing.length};`,
   );
 
   const found = new Set<string>();
@@ -360,7 +376,7 @@ export async function matchTitles(
       rows = await query<IgdbGame>(
         env,
         'games',
-        `search "${key}"; ${FIELDS} where category = (0,8,9,10,11); limit 10;`,
+        `search "${key}"; ${FIELDS} where game_type = ${GAME_TYPES}; limit 10;`,
       );
     } catch {
       // Throttled, or upstream fell over. Either way the honest answer is "here is what we
