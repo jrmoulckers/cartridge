@@ -148,6 +148,41 @@ export interface SessionStat extends Record_ {
   syncedAt: number;
 }
 
+// ── Playtime observations — append-only history ─────────────────────────────
+
+/**
+ * One reading of what a platform said about playtime, at a moment in time.
+ *
+ * Steam and Xbox report a **lifetime** total, never a window, which is why phase 7's year in
+ * review refuses to claim hours-played-in-a-year. The difference between two readings *is*
+ * that number — so this store exists purely to make sure the readings are there to subtract
+ * later. Nothing reads it yet, and that is deliberate: the value is a function of how early
+ * it starts, not of how soon it is displayed.
+ *
+ * Two shape decisions worth keeping:
+ *
+ * - It does **not** extend `Record_`. There is no `updatedAt` and no tombstone because a
+ *   row is never updated or deleted — an observation is a fact about the past, and editing
+ *   it would be rewriting history rather than correcting it.
+ * - It is keyed by `platform` + `externalId`, not by `gameId`. It records what the *platform*
+ *   said, so it survives a game being merged, deleted, re-linked or re-matched. The library
+ *   model can be rearranged freely without invalidating the history underneath it.
+ */
+export interface PlaytimeObservation {
+  id: ID;
+  platform: Platform;
+  /** The platform's own id — Steam appid, Xbox titleId, and so on. */
+  externalId: string;
+  /**
+   * Lifetime minutes as reported at `observedAt`. Never `null`: a reading with no number in
+   * it can never take part in a subtraction, so it is not written at all. A real `0` is,
+   * because "owned, launched never" is a genuine reading.
+   */
+  minutesPlayed: number;
+  /** When the sync that produced this reading ran. */
+  observedAt: number;
+}
+
 // ── Joined view ─────────────────────────────────────────────────────────────
 
 /** A game plus everything the user knows about it — what the library UI renders. */
