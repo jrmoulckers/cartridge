@@ -10,7 +10,19 @@ describe('parseRoute', () => {
   it('maps the top-level pages', () => {
     expect(parseRoute('/add').name).toBe('add');
     expect(parseRoute('/shelves').name).toBe('shelves');
+    expect(parseRoute('/stats').name).toBe('stats');
     expect(parseRoute('/settings').name).toBe('settings');
+  });
+
+  it('maps a year in review, with or without the year', () => {
+    expect(parseRoute('/year')).toEqual({ name: 'year', params: {} });
+    expect(parseRoute('/year/2026')).toEqual({ name: 'year', params: { year: '2026' } });
+    expect(parseRoute('/year/2026/')).toEqual({ name: 'year', params: { year: '2026' } });
+  });
+
+  it('refuses a year that is not one', () => {
+    expect(parseRoute('/year/last').name).toBe('notfound');
+    expect(parseRoute('/year/20').name).toBe('notfound');
   });
 
   it('maps a game deep link, trailing slash or not', () => {

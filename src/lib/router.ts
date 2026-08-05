@@ -63,7 +63,15 @@ export function link(node: HTMLAnchorElement) {
   };
 }
 
-export type RouteName = 'library' | 'add' | 'game' | 'shelves' | 'settings' | 'notfound';
+export type RouteName =
+  | 'library'
+  | 'add'
+  | 'game'
+  | 'shelves'
+  | 'stats'
+  | 'year'
+  | 'settings'
+  | 'notfound';
 
 export interface Route {
   name: RouteName;
@@ -75,6 +83,8 @@ const ROUTE_TITLES: Record<RouteName, string> = {
   add: 'Add a game',
   game: 'Game',
   shelves: 'Shelves',
+  stats: 'Stats',
+  year: 'Year in review',
   settings: 'Settings',
   notfound: 'Not found',
 };
@@ -96,9 +106,13 @@ export function parseRoute(path: string): Route {
   if (segs.length === 1) {
     if (segs[0] === 'add') return { name: 'add', params: {} };
     if (segs[0] === 'shelves') return { name: 'shelves', params: {} };
+    if (segs[0] === 'stats') return { name: 'stats', params: {} };
+    // Bare /year is this year — the page resolves "which" so the URL doesn't have to.
+    if (segs[0] === 'year') return { name: 'year', params: {} };
     if (segs[0] === 'settings') return { name: 'settings', params: {} };
     return { name: 'notfound', params: {} };
   }
   if (segs[0] === 'game' && segs[1]) return { name: 'game', params: { id: segs[1] } };
+  if (segs[0] === 'year' && /^\d{4}$/.test(segs[1])) return { name: 'year', params: { year: segs[1] } };
   return { name: 'notfound', params: {} };
 }

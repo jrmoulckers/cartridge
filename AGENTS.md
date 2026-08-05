@@ -34,6 +34,7 @@ passes CI.
 | `src/lib/storage/` | `db.ts` (IndexedDB schema + accessors), `backup.ts` (JSON export/restore). |
 | `src/lib/stores/` | Svelte stores; the only layer components talk to. |
 | `src/lib/library/` | Pure search / filter / sort / rating logic. Unit-tested, no DOM. |
+| `src/lib/stats/` | Pure statistics: coverage-carrying measures, the year rule, backlog triage. Unit-tested, no DOM. |
 | `src/lib/metadata/` | Bridge client, metadata cache, IGDB matching helpers. |
 | `src/lib/connectors/` | The platform-connector interface, registry, connectors, and the pure sync planner. |
 | `bridge/` | Cloudflare Worker. **The only component that holds secrets.** |

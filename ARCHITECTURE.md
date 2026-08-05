@@ -30,11 +30,13 @@ flowchart TB
     subgraph device["The user's device — everything that matters"]
         UI["Svelte 5 UI<br/>pages + components"]
         Stores["Stores<br/>library · shelves · settings · toast · connectors"]
+        Stats["stats/<br/>pure · local · no network"]
         DB[("IndexedDB 'cartridge' (v2)<br/>games · entries · platformLinks<br/>shelves · sessionStats · credentials · meta")]
         Backup["Backup / restore<br/>one JSON file the user owns"]
         SW["Service worker<br/>app shell precache"]
 
         UI --> Stores --> DB
+        Stores --> Stats --> UI
         DB --> Backup
     end
 
@@ -73,7 +75,7 @@ product still does its job.
 | Storage | `src/lib/storage/db.ts` | The only module that touches IndexedDB. |
 | Backup | `src/lib/storage/backup.ts` | The `cartridge/backup` envelope, and the guard against restoring a foreign file. |
 | Stores | `src/lib/stores/*` | The only thing components talk to for data. Writes go to `db` first, then refresh. |
-| Pure logic | `src/lib/library/*`, `markdown.ts`, `util.ts`, `metadata/match.ts` | No DOM, no IO. Unit-tested directly. |
+| Pure logic | `src/lib/library/*`, `src/lib/stats/*`, `markdown.ts`, `util.ts`, `metadata/match.ts` | No DOM, no IO. Unit-tested directly. |
 | Metadata | `src/lib/metadata/*` | The only code in the app that makes a network request. |
 | Connectors | `src/lib/connectors/*` | Interface + error boundary + implementations. `sync.ts` is pure; `apply.ts` is the only writer. |
 | UI | `src/lib/components/*`, `src/lib/pages/*` | Presentation. Never reaches past a store. |
@@ -201,6 +203,65 @@ declared, with the Xbox fact that forced it.
 | Playtime | Often absent — `null` → "Not reported". Never a fabricated `0`, and never allowed to erase a figure a previous sync already recorded. |
 | Ownership | Title history is what has been *played*, not what is *owned*. A never-launched purchase is simply absent, and Cartridge does not invent it. |
 
+## Statistics (phase 7)
+
+Pulled forward ahead of the PlayStation and Nintendo connectors, because two connectors were
+enough to prove the model and nothing yet paid the user back for the data.
+
+`src/lib/stats/` is pure in the same sense `library/search.ts` is — no DOM, no IndexedDB, no
+network — and it is the *only* feature in the app that adds no capability to the bridge. The
+figures come out of memory, so the whole surface works offline with zero connectors, which
+`stats/local.test.ts` asserts with `fetch` stubbed to reject.
+
+| Module | Holds |
+| --- | --- |
+| `stats/types.ts` | `Measure<T>` — a value plus `covered` / `total` — and the distribution shapes. |
+| `stats/compute.ts` | `computeStats()`: one O(n) pass producing every library-wide measure. |
+| `stats/year.ts` | The year rule: which dated facts put a game in a year, and `yearInReview()`. |
+| `stats/backlog.ts` | Triage: never-launched vs unknown vs already-begun. |
+| `stats/format.ts` | The wording of every coverage sentence, in one testable place. |
+
+### The design problem: a number with no denominator is a lie
+
+Cartridge's data is structurally incomplete on purpose. Steam reports playtime, Xbox reports
+it for some titles, PlayStation reports none. A game can be finished with no finish date or
+rated with no review. So the type system is what stops a partial number being rendered as a
+complete one: a component is handed a `Measure`, never a bare figure, and cannot show "412
+hours" without the "across 38 of your 91 games" that makes it true. A measure that cannot be
+computed honestly is `null` **with a reason**, and the UI renders the reason where the number
+would have gone. `null` playtime is never summed as `0`; a real `0` is counted separately,
+because "owned, never launched" is a genuine and interesting fact.
+
+The wording lives in `format.ts` rather than in the two pages, so honesty is a tested function
+instead of fifty strings that drift by the third change. A *complete* measure renders no
+coverage sentence at all — "across 91 of your 91 games" is noise, and noise trains people to
+skip the sentence on the measures where it matters.
+
+### The year rule
+
+A game is in year Y when a dated fact falls in Y, locally: `entry.finishedAt`,
+`entry.startedAt`, any replay date, or a `sessionStat.lastPlayedAt`. Three consequences, each
+stated on the page rather than hidden:
+
+| Consequence | Why |
+| --- | --- |
+| An undated game is in **no** year, and is counted as such. | `createdAt` is a fact about an import, not about playing. Back-filling from it would fill the page with confident nonsense. |
+| `lastPlayedAt` is *last*, not *every* — a 2027 session removes a game from 2026. | It is the only signal the platforms give, and the alternative is not having one. |
+| **Hours played in a year are never claimed.** | Nothing in `SessionStat` windows playtime to a period; the figure does not exist to be computed. The page reports *lifetime* playtime behind the year's games, labelled as such. |
+
+The same reasoning omits "biggest surprise" (no expectation is ever recorded, so a proxy would
+be fabricated) and any HowLongToBeat-style length estimate (no HLTB integration, and IGDB has
+no reliable completion times).
+
+### Performance and payload
+
+`computeStats` is one pass with no sorting inside the loop; `compute.test.ts` asserts a
+2,000-game library stays inside a bound, which is why the pages compute in a `$derived`
+instead of behind a scheduler. The two screens are `import()`ed on demand — they are the only
+ones you can go a week without opening — so the first payload is within ~1 kB gzipped of what
+it was before the phase, and the chunks are precached by the service worker so they still open
+offline.
+
 ## Failure modes, and what the user sees
 
 | What breaks | What happens |
@@ -219,6 +280,8 @@ declared, with the Xbox fact that forced it.
 | A game fails to import | It's listed as failed in the per-title results. The other nine hundred still land. |
 | A backup is restored on a new device | The library comes back whole; platform links with no credential behind them raise a reconnect prompt instead of a sync that silently does nothing. |
 | A backup file is wrong | The envelope check rejects it before anything is written. |
+| A statistic can't be computed honestly | It says what it is missing instead of showing a zero — "no platform reports playtime for these games", never "0h". |
+| A year has no dated games in it | A designed empty state that explains the year rule and points at the games with no dates, rather than a page of zeroes. |
 
 ## The shared layer
 
@@ -245,6 +308,11 @@ a point-in-time copy rather than an automatically synced one. See `vendor/README
 | --- | --- |
 | `markdown.test.ts` | The renderer emits no HTML it didn't generate. Includes XSS payloads. |
 | `library/search.test.ts` | Search, facets, and the "unknown sorts last" rule. |
+| `stats/compute.test.ts` | The honesty rules: `null` playtime is never summed as zero, a real `0` stays a distinct fact, and an uncomputable measure is `null` with a reason. Includes the 2,000-game bound. |
+| `stats/year.test.ts` | The year rule: which dated facts claim a game, that `createdAt` never does, and that a later session moves a game out of the earlier year. |
+| `stats/backlog.test.ts` | Triage keeps "a platform said zero" apart from "nobody said anything", and offers no length-based sort. |
+| `stats/format.test.ts` | A complete measure gets no coverage sentence; a partial one always does. |
+| `stats/local.test.ts` | The whole stats surface computes with `fetch` stubbed to reject. |
 | `metadata/match.test.ts` | Title matching is conservative — it returns null rather than merging two different games. |
 | `connectors/registry.test.ts` | A throwing connector degrades exactly one platform. |
 | `connectors/sync.test.ts` | The phase-3 rules: an owned game gains a link instead of duplicating, a second sync is a no-op, user-authored data is never written, a real `0` stays `0` and an unknown stays `null`. |

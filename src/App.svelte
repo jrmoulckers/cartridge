@@ -29,6 +29,9 @@
     { href: '/', label: 'Library', icon: '🎮', match: (n: string) => n === 'library' },
     { href: '/add', label: 'Add', icon: '＋', match: (n: string) => n === 'add' },
     { href: '/shelves', label: 'Shelves', icon: '🗂', match: (n: string) => n === 'shelves' },
+    // Stats and the year in review are one destination in the nav: the year is the artifact
+    // you arrive at from the everyday page, not a fifth thing to keep in your head.
+    { href: '/stats', label: 'Stats', icon: '📊', match: (n: string) => n === 'stats' || n === 'year' },
     { href: '/settings', label: 'Settings', icon: '⚙', match: (n: string) => n === 'settings' },
   ];
 </script>
@@ -72,6 +75,28 @@
         <GameDetail id={route.params.id} bind:title={subject} />
       {:else if route.name === 'shelves'}
         <Shelves />
+      {:else if route.name === 'stats'}
+        <!--
+          Stats and the year in review load on demand. They are the only screens in the app
+          you can go a week without opening, and keeping them out of the first payload keeps
+          the library — the screen people actually launch — as small as it was before this
+          phase. The chunk is precached by the service worker, so it still opens offline.
+        -->
+        {#await import('./lib/pages/Stats.svelte')}
+          <p class="muted" role="status">Working out your numbers…</p>
+        {:then Page}
+          <Page.default />
+        {:catch}
+          <p role="alert">That page couldn’t be loaded. Reload the app and try again.</p>
+        {/await}
+      {:else if route.name === 'year'}
+        {#await import('./lib/pages/YearInReview.svelte')}
+          <p class="muted" role="status">Looking back…</p>
+        {:then Page}
+          <Page.default year={route.params.year} />
+        {:catch}
+          <p role="alert">That page couldn’t be loaded. Reload the app and try again.</p>
+        {/await}
       {:else if route.name === 'settings'}
         <Settings />
       {:else}

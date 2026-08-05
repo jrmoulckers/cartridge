@@ -92,6 +92,47 @@ Cartridge is deliberately **not**:
 - A cloud service. There is no Cartridge account, because there is no Cartridge server.
 - A completionist scold. An abandoned game is a legitimate outcome, not a failure state.
 
+## Stats, and what a number is allowed to claim
+
+Cartridge's data is structurally incomplete by design, so the stats screens are built around
+one rule: **every number carries the share of the library it could actually see.** "412 hours"
+is false the moment half your library reports nothing; "412 hours across 38 of your 91 games"
+is true, and more interesting. A figure that can't be computed honestly says why instead of
+showing a zero.
+
+### What counts as "this year"
+
+A game belongs to a year when it carries a dated fact in it, in your own time zone: a finish
+date, a start date, a replay date, or the last-played date a platform reports. Everything
+that follows from that is stated on the page rather than hidden:
+
+- **A game with no dates belongs to no year.** It is counted and named, never quietly
+  dropped — and never back-filled from the day it was imported, which is a fact about an
+  import rather than about playing a game.
+- **Last-played is *last*, not *every*.** Play something again next year and it moves with
+  you, leaving the year before.
+- **Hours played *in* a year cannot be computed, so they are never claimed.** Steam and Xbox
+  report how long you have played a game in total, never when. The year page reports the
+  lifetime playtime behind the games your year touched, labelled exactly that.
+- **"Rated in 2026" is not a thing either.** A rating carries no timestamp of its own, so the
+  page talks about your ratings *of* the year's games and makes no claim about when you gave
+  them.
+
+### What Cartridge deliberately won't tell you
+
+- **Whether a game surprised you.** It never asked what you expected, so a "low expectations,
+  high rating" statistic would be invented, not measured.
+- **How long a game takes.** There is no HowLongToBeat integration and IGDB does not carry
+  reliable completion times. Backlog triage sorts on dates and titles — things Cartridge
+  actually knows — rather than on an estimate you might plan an evening around.
+- **Anything shaped like a streak.** No "you're behind", no daily target, no nagging. See the
+  anti-references above.
+
+Backlog triage keeps the `0` / `null` distinction in the foreground: **never launched** is a
+platform reporting a real zero, **nobody knows** is no platform reporting at all, and mixing
+the two into one "unplayed" pile would throw away the only thing that makes the screen more
+useful than the shelf it summarises.
+
 ## Scope by phase
 
 | Phase | What lands |
@@ -102,5 +143,5 @@ Cartridge is deliberately **not**:
 | **4 — Xbox** ✅ | The second connector, via the unofficial OpenXBL. Title history, last-played, achievements, batched playtime. Title-based IGDB matching that refuses to guess, with the unmatched tail listed for review. |
 | 5 — PlayStation | PSN library and trophies (no playtime — see above). |
 | 6 — Nintendo | Nintendo, within whatever the platform actually permits. |
-| 7 — stats | Year in review, playtime and rating distributions, backlog burn-down. |
+| **7 — stats** ✅ | Pulled forward ahead of PlayStation and Nintendo. Stats page, year in review, backlog triage — every figure carrying the share of the library it could see, computed locally with no bridge involvement. |
 | 8 — import/export | CSV import from other trackers, richer export formats. |
