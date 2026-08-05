@@ -13,6 +13,8 @@
   import AddGame from './lib/pages/AddGame.svelte';
   import GameDetail from './lib/pages/GameDetail.svelte';
   import Shelves from './lib/pages/Shelves.svelte';
+  import Stats from './lib/pages/Stats.svelte';
+  import YearInReview from './lib/pages/YearInReview.svelte';
   import Settings from './lib/pages/Settings.svelte';
   import NotFound from './lib/pages/NotFound.svelte';
 
@@ -29,6 +31,9 @@
     { href: '/', label: 'Library', icon: '🎮', match: (n: string) => n === 'library' },
     { href: '/add', label: 'Add', icon: '＋', match: (n: string) => n === 'add' },
     { href: '/shelves', label: 'Shelves', icon: '🗂', match: (n: string) => n === 'shelves' },
+    // Stats and the year in review are one destination in the nav: the year is the artifact
+    // you arrive at from the everyday page, not a fifth thing to keep in your head.
+    { href: '/stats', label: 'Stats', icon: '📊', match: (n: string) => n === 'stats' || n === 'year' },
     { href: '/settings', label: 'Settings', icon: '⚙', match: (n: string) => n === 'settings' },
   ];
 </script>
@@ -72,6 +77,10 @@
         <GameDetail id={route.params.id} bind:title={subject} />
       {:else if route.name === 'shelves'}
         <Shelves />
+      {:else if route.name === 'stats'}
+        <Stats />
+      {:else if route.name === 'year'}
+        <YearInReview year={route.params.year} />
       {:else if route.name === 'settings'}
         <Settings />
       {:else}
