@@ -1,7 +1,7 @@
 {
   "version": 1,
   "backbone": "jrmoulckers/.github",
-  "generatedAt": "2026-08-05T19:07:17.461Z",
+  "generatedAt": "2026-08-07T15:35:11.866Z",
   "entries": {
     ".github/agents/accessibility-reviewer.agent.md": {
       "sourceSha256": "f83d90b50ea87be04935ba849c0a93eda729452a2d7eee81e0cb02b4bf04dae5",
@@ -123,10 +123,35 @@
       "targetSha256": "577e706e94018d9159ef74596e14ae341ef1628c6ed4170376c360d415657f60",
       "syncedAt": "2026-08-05T19:07:17.459Z"
     },
+    ".github/prompts/backlog.prompt.md": {
+      "sourceSha256": "3d89a722994d69217b8489eb44fa6dd265ebc6f3c781f81e5c5ca5122a79d70e",
+      "targetSha256": "bd7ab6ce8db190d8fa04f1d9adc3942d9caf682b93e4ba4728ccc6145b0e5cce",
+      "syncedAt": "2026-08-07T15:35:11.864Z"
+    },
+    ".github/prompts/cleanup.prompt.md": {
+      "sourceSha256": "9b0e4e4c94e361f8fc59a5a1da99894d8bed4cc06096dcb1f133a77cf68367f7",
+      "targetSha256": "31a1c944acf234a6f64d020a7ec127849e804f89a280198b6157e6950df1ea14",
+      "syncedAt": "2026-08-07T15:35:11.864Z"
+    },
+    ".github/prompts/fix-ci.prompt.md": {
+      "sourceSha256": "de28cbb2c039690a0c9e1bdd521885db37a9b9c6be4b586167c8e5cf5b1e8256",
+      "targetSha256": "edb6e02eef31dc774db13300eadacae04489ac4942f84d3dfd9eb80b6d7a5cc6",
+      "syncedAt": "2026-08-07T15:35:11.864Z"
+    },
     ".github/prompts/rebase-all.prompt.md": {
       "sourceSha256": "17152cf09898a2a6cb5ea2e1f390db5e1df935c48af0ac8fa2f4dab7df490b6b",
       "targetSha256": "fe092d66be2ca24c962085329d93b00d78c788a5c7382fba7c8cad7e0cb391cf",
       "syncedAt": "2026-08-05T19:07:17.459Z"
+    },
+    ".github/prompts/review.prompt.md": {
+      "sourceSha256": "041a14fed45e9b0adb3f9dd69425978b9fc4557c39b01d4c895ea7059362528b",
+      "targetSha256": "060a41b483876e80e910db6fad77c73b4a56c3351b38565e0ca52c4ca4f1af95",
+      "syncedAt": "2026-08-07T15:35:11.864Z"
+    },
+    ".github/prompts/sprint.prompt.md": {
+      "sourceSha256": "25a2a7cf1731499df068b088e8efb3587692e0158b30aedec70102beb2f5a83e",
+      "targetSha256": "defe35ccbda76c7227ba47f84c1f57e38ff0f164d3cc7f4e72e656c0d92e9b6e",
+      "syncedAt": "2026-08-07T15:35:11.864Z"
     },
     ".github/prompts/team.prompt.md": {
       "sourceSha256": "d0655e6874904468756929174af171ccc678d4e421834efc0ae42f579929a05b",
