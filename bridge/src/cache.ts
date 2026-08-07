@@ -34,17 +34,25 @@ export const STEAM_MATCH_TTL_S = 30 * 24 * 60 * 60;
  */
 export const TITLE_MATCH_TTL_S = 7 * 24 * 60 * 60;
 
-export const searchKey = (query: string) => `search:v1:${query.toLowerCase()}`;
-export const gameKey = (igdbId: number) => `game:v1:${igdbId}`;
+/**
+ * Cache keys carry a version so a change in what we *ask* IGDB can invalidate what we stored.
+ *
+ * Bumped to v2 when the queries moved off IGDB's deprecated `category` field to `game_type`
+ * and `external_game_source`. IGDB accepted the old name and matched nothing, so every entry
+ * written before that fix is a confident, well-formed record of "no results" — indistinguishable
+ * from a real miss and good for up to a month. Version the key rather than trust the TTL.
+ */
+export const searchKey = (query: string) => `search:v2:${query.toLowerCase()}`;
+export const gameKey = (igdbId: number) => `game:v2:${igdbId}`;
 /** Keyed by appid — public, identical for every user, and never by SteamID. */
 export const schemaKey = (appid: string) => `steam:schema:v1:${appid}`;
-export const steamMatchKey = (appid: string) => `steam:igdb:v1:${appid}`;
+export const steamMatchKey = (appid: string) => `steam:igdb:v2:${appid}`;
 /**
  * Keyed by the *normalised* title, so "Halo Infinite", "HALO INFINITE" and "Halo Infinite
  * (PC)" are one entry. Public and identical for every user: which IGDB game a title refers to
  * says nothing about who asked. No platform, no account, no id belonging to a person.
  */
-export const titleMatchKey = (normalized: string) => `title:igdb:v1:${normalized}`;
+export const titleMatchKey = (normalized: string) => `title:igdb:v2:${normalized}`;
 
 export async function readCache<T>(env: Env, key: string): Promise<T | null> {
   try {
