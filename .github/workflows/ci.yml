@@ -67,6 +67,8 @@ jobs:
     with:
       node-version: '22'
       package-manager: npm
+      # The repository does not expose Dependency Graph/GHAS dependency review.
+      run-dependency-review: false
 
   bridge-security:
     permissions:
