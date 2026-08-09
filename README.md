@@ -59,6 +59,19 @@ Without it, you type the details in yourself and everything else is identical.
 | [bridge/README.md](bridge/README.md) | The worker: secrets, deploy, hardening, and what it deliberately is not. |
 | [vendor/README.md](vendor/README.md) | The vendored design tokens and where they come from. |
 
+## Product authority
+
+Product obligations and outcomes are defined in
+[jrmoulckers/product](https://github.com/jrmoulckers/product) and consumed by reference —
+cite obligations by stable ID (for example `PROD-REL-001`), pinning to a commit SHA when the
+exact wording matters. Roadmaps, metrics, experiments and compliance evidence stay here and
+cite the obligation they satisfy; [PRODUCT.md](PRODUCT.md) is Cartridge's instance.
+
+Engineering mechanisms are defined in
+[jrmoulckers/engineering](https://github.com/jrmoulckers/engineering), design and interface in
+[jrmoulckers/studio](https://github.com/jrmoulckers/studio), and automation and shared agent
+assets in [jrmoulckers/.github](https://github.com/jrmoulckers/.github).
+
 ## Your data
 
 Your library lives in IndexedDB in your browser. There is no Cartridge account and no

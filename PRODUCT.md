@@ -1,5 +1,9 @@
 # Cartridge — product
 
+Cartridge's product definition. It is an instance of the obligations defined in
+[jrmoulckers/product](https://github.com/jrmoulckers/product); sections below cite the
+obligation IDs they satisfy rather than restating them.
+
 ## What it is
 
 **Goodreads for video games.** Cartridge tracks the games you're playing, have played, and
@@ -16,6 +20,9 @@ one place that answers:
 - *What should I play next, out of the 300 things I already own?*
 
 ## The promise
+
+*Satisfies `PROD-STRAT-001` — the target user value and the trust constraints that outrank
+adoption or novelty, for the three sections above.*
 
 **Your library is yours, it lives on your device, and it works with nothing connected.**
 
@@ -41,6 +48,9 @@ not the storefront. As of phase 4 this is a tested property rather than an inten
 `src/lib/connectors/cross-platform.test.ts`.
 
 ### Playtime you don't have is not zero
+
+*Satisfies `PROD-MET-003` — unknown and none are different facts, and a number may not claim
+more than the data supports.*
 
 PlayStation does not report playtime. Cartridge stores that as `null` and renders it as
 "Not reported". Writing `0h` would be a small lie that quietly poisons every statistic
@@ -84,6 +94,9 @@ patched.
 
 ## Anti-references
 
+*Satisfies `PROD-STRAT-001` — the rejected options and the trust constraints that ruled them
+out.*
+
 Cartridge is deliberately **not**:
 
 - A social network. There is no feed, no follower count, no "5 friends played this".
@@ -93,6 +106,10 @@ Cartridge is deliberately **not**:
 - A completionist scold. An abandoned game is a legitimate outcome, not a failure state.
 
 ## Stats, and what a number is allowed to claim
+
+*Satisfies `PROD-MET-001` (one owned definition per metric, stating its population, window
+and exclusions) and `PROD-MET-003` (report coverage, limitations and what the number cannot
+claim) — for this section and the two that follow.*
 
 Cartridge's data is structurally incomplete by design, so the stats screens are built around
 one rule: **every number carries the share of the library it could actually see.** "412 hours"
@@ -134,6 +151,10 @@ the two into one "unplayed" pile would throw away the only thing that makes the 
 useful than the shelf it summarises.
 
 ## Scope by phase
+
+*Satisfies `PROD-STRAT-003` (milestones are coherent outcomes that stay valuable without any
+one platform or vendor) and `PROD-PLAN-001` (each phase is an independently shippable slice —
+phase 7 shipped ahead of 5 and 6 precisely because it did not depend on them).*
 
 | Phase | What lands |
 | --- | --- |

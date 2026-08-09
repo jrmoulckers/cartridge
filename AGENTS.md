@@ -86,6 +86,23 @@ engine's hash tracking, or it forks a file that then silently goes stale.
 `.github/workflows/ci.yml` is the exception: it is product-owned forever. The sync engine
 reports reusable workflows as "native" but never writes them, so wiring and inputs are ours.
 
+## Product authority
+
+Product obligations and outcomes are defined in
+[jrmoulckers/product](https://github.com/jrmoulckers/product) and consumed **by reference,
+never by copy** — nothing is synced or vendored. Cite obligations by stable ID (for example
+`PROD-REL-001`), and pin to a commit SHA when the exact wording matters. Roadmaps, metrics,
+experiments and compliance evidence stay in this repository and cite the obligation they
+satisfy; [PRODUCT.md](PRODUCT.md) is Cartridge's instance of that authority, not a copy of it.
+
+Engineering mechanisms live in
+[jrmoulckers/engineering](https://github.com/jrmoulckers/engineering) (`ENG-*`), design and
+interface in [jrmoulckers/studio](https://github.com/jrmoulckers/studio) (`STUDIO-*`), and
+automation plus shared agent assets in
+[jrmoulckers/.github](https://github.com/jrmoulckers/.github) (`GH-*`). The legacy
+`principles/<realm>.md` files are gone — if you find a citation to one, remap it via
+`principles/migration-ledger.json` in `jrmoulckers/studio`.
+
 ## Deviations from the shared principles
 
 - **No shared lint/format presets.** `@jrm/eslint-config`, `@jrm/prettier-config`,
@@ -95,15 +112,29 @@ reports reusable workflows as "native" but never writes them, so wiring and inpu
   `ci.yml` calls `reusable-ci-lint` with `lint-command` and `format-check-command` set to
   empty strings — its lint job self-skips and only the semantic-PR-title check runs. Give
   those two inputs real commands once the repo has lint/format scripts.
-- **Credential boundary is a Worker, not a Next.js server.** `principles/backend.md` #4
-  ("clients cannot be trusted to gate access — default deny") and `principles/security.md`
-  #1/#4 require third-party credentials to sit behind a first-party server. Of the four
+- **Credential boundary is a Worker, not a Next.js server.**
+  [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
+  ("source secrets outside code and enforce authentication and authorization server-side with
+  default-deny decisions") and
+  [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+  / [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+  require third-party credentials to sit behind a first-party server. Of the four
   platforms, only Steam has an official public API (server-side key); Xbox is partner-gated,
   PlayStation is a reverse-engineered NPSSO flow and Nintendo has no API at all — so every
   path is either a server-held key or a long-lived per-user secret. Cartridge satisfies that
   with a local-first Svelte PWA plus the `bridge/` Cloudflare Worker as the sole secret
-  holder, rather than the Next.js server tier used by `jrm-recipes`. `principles/frontend.md`
-  #7 still binds: no secret ever reaches `src/`.
+  holder, rather than the Next.js server tier used by `jrm-recipes`.
+  [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+  ("treat browser code, rendered input, and client-visible configuration as an untrusted
+  seam") still binds: no secret ever reaches `src/`.
+
+  These four citations previously pointed at `principles/backend.md` #4,
+  `principles/security.md` #1/#4 and `principles/frontend.md` #7 in `jrmoulckers/studio`.
+  Those legacy files were deleted in the principle migration; the successors above are the
+  ones declared in that repo's `principles/migration-ledger.json`
+  (`studio-legacy:backend:4` → `ENG-API-003`, `studio-legacy:security:1` → `ENG-SEC-001`,
+  `studio-legacy:security:4` → `ENG-SEC-004`, `studio-legacy:frontend:7` → `ENG-WEB-001`;
+  all four `disposition: reference`, `status: verified`).
 
 <!-- studio:base:start -->
 <!-- synced from jrmoulckers/.github — canonical source; do not edit here -->
