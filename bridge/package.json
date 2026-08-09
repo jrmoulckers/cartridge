@@ -11,12 +11,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240925.0",
+    "@cloudflare/workers-types": "^5.20260809.1",
     "typescript": "^5.6.2",
-    "wrangler": "^3.80.0"
+    "wrangler": "^4.120.0"
   },
   "allowScripts": {
-    "esbuild@0.17.19": true,
-    "workerd@1.20250718.0": true
+    "esbuild@0.28.1": true,
+    "workerd@1.20260801.1": true
   }
 }
