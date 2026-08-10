@@ -115,8 +115,9 @@ describe('matchGame', () => {
   });
 
   it('returns null rather than guessing between sequels', () => {
-    expect(matchGame(library, { platform: 'steam', externalId: '9', title: 'Final Fantasy XV' }))
-      .toBeNull();
+    expect(
+      matchGame(library, { platform: 'steam', externalId: '9', title: 'Final Fantasy XV' }),
+    ).toBeNull();
   });
 
   it('returns null for an empty title', () => {

@@ -161,7 +161,7 @@ describe('genres', () => {
       item({ id: '2', genres: ['RPG'] }),
       item({ id: '3' }),
     ]);
-    expect(genres.buckets[0]).toMatchObject({ label: 'RPG', count: 2 });
+    expect(genres.buckets[0]!).toMatchObject({ label: 'RPG', count: 2 });
     expect(genres.covered).toBe(2);
     expect(genres.total).toBe(3);
     expect(genres.reason).toBeTruthy();
@@ -176,7 +176,10 @@ describe('genres', () => {
     const enough = Array.from({ length: GENRE_RATING_MINIMUM }, (_, i) =>
       item({ id: `y${i}`, genres: ['Roguelike'], rating: 5 }),
     );
-    expect(computeStats(enough).genresByRating[0]).toMatchObject({ label: 'Roguelike', detail: 5 });
+    expect(computeStats(enough).genresByRating[0]!).toMatchObject({
+      label: 'Roguelike',
+      detail: 5,
+    });
   });
 });
 
@@ -232,8 +235,16 @@ describe('release years and extremes', () => {
 
   it('picks the least-played finish only from games you finished', () => {
     const { extremes } = computeStats([
-      item({ id: 'short', status: 'played', platforms: [{ platform: 'steam', minutesPlayed: 200 }] }),
-      item({ id: 'long', status: 'played', platforms: [{ platform: 'steam', minutesPlayed: 4000 }] }),
+      item({
+        id: 'short',
+        status: 'played',
+        platforms: [{ platform: 'steam', minutesPlayed: 200 }],
+      }),
+      item({
+        id: 'long',
+        status: 'played',
+        platforms: [{ platform: 'steam', minutesPlayed: 4000 }],
+      }),
       item({ id: 'tiny', status: 'backlog', platforms: [{ platform: 'steam', minutesPlayed: 5 }] }),
     ]);
     expect(extremes.leastPlayedFinish?.id).toBe('short');

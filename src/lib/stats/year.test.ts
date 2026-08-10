@@ -26,9 +26,9 @@ describe('what puts a game in a year', () => {
   it('accepts a finish, a start, a replay and a platform last-played date', () => {
     expect(signalsIn(item({ id: '1', finishedAt: local(2026) }), 2026)).toContain('finished');
     expect(signalsIn(item({ id: '2', startedAt: local(2026) }), 2026)).toContain('started');
-    expect(
-      signalsIn(item({ id: '3', replays: [{ finishedAt: local(2026) }] }), 2026),
-    ).toContain('replayed');
+    expect(signalsIn(item({ id: '3', replays: [{ finishedAt: local(2026) }] }), 2026)).toContain(
+      'replayed',
+    );
     expect(
       signalsIn(
         item({ id: '4', platforms: [{ platform: 'steam', lastPlayedAt: local(2026) }] }),
@@ -132,7 +132,7 @@ describe('the review', () => {
   });
 
   it('finds the year’s genres and platforms, and its oldest release', () => {
-    expect(review.genres.buckets[0]).toMatchObject({ label: 'RPG', count: 2 });
+    expect(review.genres.buckets[0]!).toMatchObject({ label: 'RPG', count: 2 });
     expect(review.genres.covered).toBe(2);
     expect(review.platforms.map((p) => p.key)).toContain('steam');
     expect(review.oldestRelease?.amount).toBe(1998);

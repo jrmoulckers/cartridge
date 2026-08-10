@@ -1,0 +1,19 @@
+node_modules
+dist
+dev-dist
+coverage
+package-lock.json
+bridge/package-lock.json
+
+# Vendored upstream artifacts — never hand-edited, never reformatted.
+vendor
+.impeccable
+
+# Synced canon from jrmoulckers/.github — reformatting creates false sync drift.
+.github/agents
+.github/skills
+.github/prompts
+.github/instructions
+
+# Partly upstream-owned: the studio:base region is merged in by the sync engine.
+AGENTS.md

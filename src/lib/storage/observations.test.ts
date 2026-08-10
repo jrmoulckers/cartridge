@@ -94,12 +94,16 @@ describe('recordObservation', () => {
     expect(rows.map((r) => r.minutesPlayed)).toEqual([100, 340]);
     // The whole point: the difference between two readings is the playtime in that window,
     // and it only exists because the earlier one was kept.
-    expect(rows[1].minutesPlayed - rows[0].minutesPlayed).toBe(240);
+    expect(rows[1]!.minutesPlayed - rows[0]!.minutesPlayed).toBe(240);
   });
 
   it('writes nothing for a null reading, and something for a real zero', async () => {
     expect(
-      await db.recordObservation({ platform: 'playstation', externalId: 'np1', minutesPlayed: null }),
+      await db.recordObservation({
+        platform: 'playstation',
+        externalId: 'np1',
+        minutesPlayed: null,
+      }),
     ).toBeNull();
     expect(
       await db.recordObservation({ platform: 'steam', externalId: '620', minutesPlayed: 0 }),
@@ -107,8 +111,8 @@ describe('recordObservation', () => {
 
     const rows = await db.getAllObservations();
     expect(rows).toHaveLength(1);
-    expect(rows[0].minutesPlayed).toBe(0);
-    expect(rows[0].platform).toBe('steam');
+    expect(rows[0]!.minutesPlayed).toBe(0);
+    expect(rows[0]!.platform).toBe('steam');
   });
 
   it('keeps readings apart by platform even when two platforms use the same id', async () => {
@@ -116,7 +120,7 @@ describe('recordObservation', () => {
     await db.recordObservation({ platform: 'xbox', externalId: '1', minutesPlayed: 20 });
 
     expect(await db.getObservationsForLink('steam', '1')).toHaveLength(1);
-    expect((await db.getObservationsForLink('xbox', '1'))[0].minutesPlayed).toBe(20);
+    expect((await db.getObservationsForLink('xbox', '1'))[0]!.minutesPlayed).toBe(20);
   });
 
   it('orders a link’s readings oldest first, whatever order they were written in', async () => {
@@ -145,8 +149,8 @@ describe('a sync', () => {
 
     const rows = await db.getObservationsForLink('steam', '620');
     expect(rows).toHaveLength(1);
-    expect(rows[0].minutesPlayed).toBe(600);
-    expect(rows[0].observedAt).toBeGreaterThan(0);
+    expect(rows[0]!.minutesPlayed).toBe(600);
+    expect(rows[0]!.observedAt).toBeGreaterThan(0);
   });
 
   it('records a second reading when the same game syncs again', async () => {
@@ -218,7 +222,7 @@ describe('a backup', () => {
     await restoreBackup(backup);
     const rows = await db.getAllObservations();
     expect(rows).toHaveLength(1);
-    expect(rows[0].minutesPlayed).toBe(600);
+    expect(rows[0]!.minutesPlayed).toBe(600);
   });
 
   it('restores a backup written before the store existed', async () => {
@@ -230,7 +234,9 @@ describe('a backup', () => {
       exportedAt: 1,
       data: {
         games: [{ id: 'g1', title: 'Old', sortTitle: 'old', genres: [], platforms: [] }],
-        entries: [{ id: 'e1', gameId: 'g1', status: 'backlog', shelfIds: [], replays: [], tags: [] }],
+        entries: [
+          { id: 'e1', gameId: 'g1', status: 'backlog', shelfIds: [], replays: [], tags: [] },
+        ],
         platformLinks: [],
         shelves: [{ id: 's1', name: 'Backlog', order: 1 }],
         sessionStats: [],

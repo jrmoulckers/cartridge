@@ -275,8 +275,8 @@
 <section class="card stack" aria-labelledby="backup-h">
   <h2 id="backup-h">Your data</h2>
   <p class="muted">
-    Your library lives in this browser, on this device. A backup is a single JSON file you
-    own — covers included — and both saving and restoring work with no network.
+    Your library lives in this browser, on this device. A backup is a single JSON file you own —
+    covers included — and both saving and restoring work with no network.
   </p>
 
   <div class="row wrap">
@@ -301,9 +301,9 @@
         {counts.shelves} shelves.
       </p>
       <p class="muted">
-        Restoring <strong>replaces</strong> everything currently in this browser. Cartridge will
-        download a copy of your current library first, just in case. Platform connections
-        aren’t included in a backup — you’ll reconnect them afterwards.
+        Restoring <strong>replaces</strong> everything currently in this browser. Cartridge will download
+        a copy of your current library first, just in case. Platform connections aren’t included in a
+        backup — you’ll reconnect them afterwards.
       </p>
       <div class="row wrap">
         <button type="button" class="btn danger" onclick={confirmRestore} disabled={busy}>
@@ -322,10 +322,10 @@
 <section class="card stack" aria-labelledby="bridge-h">
   <h2 id="bridge-h">Metadata bridge <span class="pill">Optional</span></h2>
   <p class="muted">
-    The bridge is a small worker that looks up cover art and release details so you don't have
-    to type them. It never sees your library, your ratings or your reviews — only the words you
-    type into a search box. Leave it blank and Cartridge works exactly as it does now, just
-    with more typing.
+    The bridge is a small worker that looks up cover art and release details so you don't have to
+    type them. It never sees your library, your ratings or your reviews — only the words you type
+    into a search box. Leave it blank and Cartridge works exactly as it does now, just with more
+    typing.
   </p>
 
   <div class="row wrap">
@@ -380,8 +380,8 @@
           </p>
         {:else}
           <p class="muted status">
-            Signs in through Steam itself. Cartridge never sees your password — only your
-            public account number.
+            Signs in through Steam itself. Cartridge never sees your password — only your public
+            account number.
           </p>
         {/if}
       </div>
@@ -409,8 +409,8 @@
 
     {#if !$bridgeUrl}
       <p class="muted status">
-        Steam needs a bridge: its API has no browser access and requires a server-side key.
-        Set one above and this button turns on.
+        Steam needs a bridge: its API has no browser access and requires a server-side key. Set one
+        above and this button turns on.
       </p>
     {/if}
 
@@ -422,9 +422,9 @@
           linked to Steam, but this device isn’t connected to it.
         </p>
         <p class="muted">
-          Account connections aren’t part of a backup — on purpose, so a backup file never
-          carries an account with it. Everything you wrote came across fine; reconnecting just
-          starts playtime and achievements updating again.
+          Account connections aren’t part of a backup — on purpose, so a backup file never carries
+          an account with it. Everything you wrote came across fine; reconnecting just starts
+          playtime and achievements updating again.
         </p>
         <div class="row wrap">
           <button type="button" class="btn primary" onclick={connect} disabled={!$bridgeUrl}>
@@ -472,19 +472,16 @@
       <div class="confirm">
         <p>Disconnect Steam?</p>
         <p class="muted">
-          This removes your Steam account number and the Steam playtime and achievement figures
-          from your library. <strong>Your games, ratings, reviews, notes and shelves stay
-          exactly as they are</strong> — they're yours, and they have nothing to do with Steam.
+          This removes your Steam account number and the Steam playtime and achievement figures from
+          your library. <strong
+            >Your games, ratings, reviews, notes and shelves stay exactly as they are</strong
+          > — they're yours, and they have nothing to do with Steam.
         </p>
         <div class="row wrap">
           <button type="button" class="btn danger" onclick={confirmDisconnect}>
             Disconnect Steam
           </button>
-          <button
-            type="button"
-            class="btn ghost"
-            onclick={() => (confirmingDisconnect = false)}
-          >
+          <button type="button" class="btn ghost" onclick={() => (confirmingDisconnect = false)}>
             Keep it connected
           </button>
         </div>
@@ -509,9 +506,9 @@
           </p>
         {:else}
           <p class="muted status">
-            Uses your own free key from OpenXBL, a third-party service. Microsoft has no public
-            Xbox library API, so this is the only route there is — and it can break without
-            warning. If it does, only this tab stops working.
+            Uses your own free key from OpenXBL, a third-party service. Microsoft has no public Xbox
+            library API, so this is the only route there is — and it can break without warning. If
+            it does, only this tab stops working.
           </p>
         {/if}
       </div>
@@ -556,8 +553,8 @@
         <p class="muted status">
           Sign in at
           <a href={OPENXBL_KEY_URL} target="_blank" rel="noopener noreferrer">xbl.io</a>
-          with your Microsoft account and copy the key it shows you. It is yours rather than
-          Cartridge's, so your rate limit is your own — and it stays on this device.
+          with your Microsoft account and copy the key it shows you. It is yours rather than Cartridge's,
+          so your rate limit is your own — and it stays on this device.
         </p>
         <div class="row wrap">
           <button
@@ -574,8 +571,8 @@
 
     {#if !$bridgeUrl}
       <p class="muted status">
-        Xbox needs a bridge too — OpenXBL sends no browser CORS headers, so the request has to
-        go through it. Set one above and this turns on.
+        Xbox needs a bridge too — OpenXBL sends no browser CORS headers, so the request has to go
+        through it. Set one above and this turns on.
       </p>
     {/if}
 
@@ -587,8 +584,8 @@
           linked to Xbox, but this device isn’t connected to it.
         </p>
         <p class="muted">
-          Your OpenXBL key isn’t part of a backup, on purpose — a backup file is not a place for
-          a secret. Everything you wrote came across fine; paste the key again to resume syncing.
+          Your OpenXBL key isn’t part of a backup, on purpose — a backup file is not a place for a
+          secret. Everything you wrote came across fine; paste the key again to resume syncing.
         </p>
       </div>
     {/if}
@@ -622,10 +619,10 @@
       <div class="confirm">
         <p>Disconnect Xbox?</p>
         <p class="muted">
-          This forgets your OpenXBL key and removes the Xbox playtime and achievement figures
-          from your library. <strong>Your games, ratings, reviews, notes and shelves stay
-          exactly as they are.</strong> The key itself lives in your xbl.io account — delete it
-          there if you want it gone for good.
+          This forgets your OpenXBL key and removes the Xbox playtime and achievement figures from
+          your library. <strong
+            >Your games, ratings, reviews, notes and shelves stay exactly as they are.</strong
+          > The key itself lives in your xbl.io account — delete it there if you want it gone for good.
         </p>
         <div class="row wrap">
           <button type="button" class="btn danger" onclick={confirmXboxDisconnect}>

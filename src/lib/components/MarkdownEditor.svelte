@@ -52,14 +52,13 @@
   </div>
 
   {#if preview}
+    <!-- `html` is renderMarkdown() output. That renderer escapes its input first and emits
+         only the tags it generates itself; markdown.test.ts proves it against XSS payloads.
+         This is the sanitiser's one intended sink. -->
+    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
     <div class="md preview card">{@html html}</div>
   {:else}
-    <textarea
-      {id}
-      {rows}
-      {placeholder}
-      bind:value
-      oninput={(e) => onchange(e.currentTarget.value)}
+    <textarea {id} {rows} {placeholder} bind:value oninput={(e) => onchange(e.currentTarget.value)}
     ></textarea>
     <p class="hint muted">
       Markdown: <code>**bold**</code>, <code>*italic*</code>, <code># heading</code>,

@@ -73,7 +73,10 @@ export function readSteamResult(): SteamAuthOutcome | null {
   if (steamId) {
     // Verified by the bridge, but check the shape anyway: this arrived through a URL.
     if (!STEAMID.test(steamId)) {
-      return { kind: 'failed', message: MESSAGES['bad-response'] };
+      return {
+        kind: 'failed',
+        message: MESSAGES['bad-response'] ?? 'Steam sign-in didn’t complete.',
+      };
     }
     return { kind: 'connected', steamId };
   }

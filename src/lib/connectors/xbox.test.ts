@@ -92,7 +92,7 @@ describe('where the API key goes', () => {
     library([]);
     await xboxConnector.fetchLibrary({ credentials });
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit];
     // The whole reason the bridge grew an `X-XBL-Key` header: a key in a query string ends
     // up in access logs, in `Referer` headers and in browser history, and this one is
     // long-lived. There is no rotating it out of a log file after the fact.
@@ -103,7 +103,7 @@ describe('where the API key goes', () => {
   it('never sends cookies with it', async () => {
     library([]);
     await xboxConnector.fetchLibrary({ credentials });
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [, init] = fetchMock.mock.calls[0]! as [string, RequestInit];
     expect(init.credentials).toBe('omit');
   });
 });
@@ -144,18 +144,20 @@ describe('fetchLibrary', () => {
     library([{ titleId: '1', title: 'Forza Horizon 5', minutesPlayed: null }], {});
 
     const page = await xboxConnector.fetchLibrary({ credentials });
-    expect(page.items[0].minutesPlayed).toBeNull();
+    expect(page.items[0]!.minutesPlayed).toBeNull();
   });
 
   it('keeps the library when the playtime call fails', async () => {
     fetchMock.mockResolvedValueOnce(reply({ games: [{ titleId: '1', title: 'Gears 5' }] }));
-    fetchMock.mockResolvedValueOnce(reply({ error: 'rate-limited', message: 'slow down' }, { status: 429 }));
+    fetchMock.mockResolvedValueOnce(
+      reply({ error: 'rate-limited', message: 'slow down' }, { status: 429 }),
+    );
 
     // Playtime is the optional half. Losing an import over an optional statistic would be
     // the wrong trade, especially against a 150-request hourly budget.
     const page = await xboxConnector.fetchLibrary({ credentials });
     expect(page.items).toHaveLength(1);
-    expect(page.items[0].minutesPlayed).toBeNull();
+    expect(page.items[0]!.minutesPlayed).toBeNull();
   });
 
   it('drops rows it cannot trust instead of importing nonsense', async () => {
@@ -173,19 +175,22 @@ describe('fetchLibrary', () => {
     const page = await xboxConnector.fetchLibrary({ credentials });
     expect(page.items.map((g) => g.externalId)).toEqual(['1', '2']);
     // A title-less row keeps its id rather than becoming `undefined` in someone's library.
-    expect(page.items[1].title).toBe('Title 2');
+    expect(page.items[1]!.title).toBe('Title 2');
   });
 
   it('ignores a 0/0 achievement count so it cannot render as progress', async () => {
-    library([{ titleId: '1', title: 'No Achievements', achievements: { earned: 0, total: 0 } }], {});
+    library(
+      [{ titleId: '1', title: 'No Achievements', achievements: { earned: 0, total: 0 } }],
+      {},
+    );
     const page = await xboxConnector.fetchLibrary({ credentials });
-    expect(page.items[0].achievements).toBeUndefined();
+    expect(page.items[0]!.achievements).toBeUndefined();
   });
 
   it('refuses a non-numeric minutes value from a patched-up proxy', async () => {
     library([{ titleId: '1', title: 'Game' }], { '1': '640' as unknown as number });
     const page = await xboxConnector.fetchLibrary({ credentials });
-    expect(page.items[0].minutesPlayed).toBeNull();
+    expect(page.items[0]!.minutesPlayed).toBeNull();
   });
 
   it('throws unsupported rather than crashing when the shape is wrong entirely', async () => {
@@ -211,10 +216,13 @@ describe('errors a user can act on', () => {
 
   it('carries a retry delay when OpenXBL throttles', async () => {
     fetchMock.mockResolvedValueOnce(
-      reply({ error: 'rate-limited', message: 'Out of requests.' }, {
-        status: 429,
-        headers: { 'retry-after': '900' },
-      }),
+      reply(
+        { error: 'rate-limited', message: 'Out of requests.' },
+        {
+          status: 429,
+          headers: { 'retry-after': '900' },
+        },
+      ),
     );
 
     const error = await xboxConnector.fetchLibrary({ credentials }).catch((e) => e);
@@ -225,7 +233,9 @@ describe('errors a user can act on', () => {
   it('calls an outage unsupported, not auth — the key is fine', async () => {
     // Telling someone their key is bad when OpenXBL is simply down sends them off to make a
     // new one, which will not help and will burn their quota finding out.
-    fetchMock.mockResolvedValueOnce(reply({ error: 'upstream', message: 'bad gateway' }, { status: 502 }));
+    fetchMock.mockResolvedValueOnce(
+      reply({ error: 'upstream', message: 'bad gateway' }, { status: 502 }),
+    );
     const error = await xboxConnector.fetchLibrary({ credentials }).catch((e) => e);
     expect(error.kind).toBe('unsupported');
   });
@@ -306,7 +316,7 @@ describe('fetchAchievements', () => {
     const ids = Array.from({ length: 30 }, (_, i) => String(i + 1));
     await xboxConnector.fetchAchievements({ credentials, externalIds: ids });
 
-    const [url] = fetchMock.mock.calls[0] as [string];
+    const [url] = fetchMock.mock.calls[0]! as [string];
     expect(new URL(url).searchParams.get('titleids')?.split(',')).toHaveLength(10);
   });
 
@@ -320,7 +330,10 @@ describe('fetchAchievements', () => {
         ],
       }),
     );
-    const page = await xboxConnector.fetchAchievements({ credentials, externalIds: ['1', '2', '3'] });
+    const page = await xboxConnector.fetchAchievements({
+      credentials,
+      externalIds: ['1', '2', '3'],
+    });
     expect(page.items).toEqual([{ externalId: '1', achievements: { earned: 3, total: 10 } }]);
   });
 });

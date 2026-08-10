@@ -64,14 +64,7 @@ export function link(node: HTMLAnchorElement) {
 }
 
 export type RouteName =
-  | 'library'
-  | 'add'
-  | 'game'
-  | 'shelves'
-  | 'stats'
-  | 'year'
-  | 'settings'
-  | 'notfound';
+  'library' | 'add' | 'game' | 'shelves' | 'stats' | 'year' | 'settings' | 'notfound';
 
 export interface Route {
   name: RouteName;
@@ -112,7 +105,9 @@ export function parseRoute(path: string): Route {
     if (segs[0] === 'settings') return { name: 'settings', params: {} };
     return { name: 'notfound', params: {} };
   }
-  if (segs[0] === 'game' && segs[1]) return { name: 'game', params: { id: segs[1] } };
-  if (segs[0] === 'year' && /^\d{4}$/.test(segs[1])) return { name: 'year', params: { year: segs[1] } };
+  const [head, second] = segs;
+  if (head === 'game' && second) return { name: 'game', params: { id: second } };
+  if (head === 'year' && second && /^\d{4}$/.test(second))
+    return { name: 'year', params: { year: second } };
   return { name: 'notfound', params: {} };
 }

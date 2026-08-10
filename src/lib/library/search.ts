@@ -210,14 +210,14 @@ function countDistinct(values: string[]): string[] {
 export function isFiltered(filter: LibraryFilter): boolean {
   return Boolean(
     filter.query.trim() ||
-      (filter.status && filter.status !== 'all') ||
-      filter.shelfId ||
-      filter.platform ||
-      filter.genre ||
-      filter.tag ||
-      filter.minRating != null ||
-      filter.favouritesOnly ||
-      filter.unratedOnly ||
-      filter.year != null,
+    (filter.status && filter.status !== 'all') ||
+    filter.shelfId ||
+    filter.platform ||
+    filter.genre ||
+    filter.tag ||
+    filter.minRating != null ||
+    filter.favouritesOnly ||
+    filter.unratedOnly ||
+    filter.year != null,
   );
 }

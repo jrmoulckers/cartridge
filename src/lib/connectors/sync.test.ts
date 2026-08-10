@@ -102,26 +102,34 @@ const metadata = (igdbId: number, title: string): GameMetadata => ({
 describe('a game already in the library', () => {
   it('gains a Steam link instead of becoming a duplicate — matched by IGDB id', () => {
     const items = [item({ id: 'g1', title: 'Hades', igdbId: 1145 })];
-    const plan = planSync(items, [steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200 })], {
-      platform: 'steam',
-      metadata: { '1145360': metadata(1145, 'Hades') },
-    });
+    const plan = planSync(
+      items,
+      [steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200 })],
+      {
+        platform: 'steam',
+        metadata: { '1145360': metadata(1145, 'Hades') },
+      },
+    );
 
     expect(plan.adds).toHaveLength(0);
     expect(plan.updates).toHaveLength(1);
-    expect(plan.updates[0].gameId).toBe('g1');
-    expect(plan.updates[0].newLink).toBe(true);
+    expect(plan.updates[0]!.gameId).toBe('g1');
+    expect(plan.updates[0]!.newLink).toBe(true);
   });
 
   it('gains a link when only the title matches, and records that it was a title match', () => {
     const items = [item({ id: 'g1', title: 'Hades' })];
-    const plan = planSync(items, [steamGame({ externalId: '1145360', title: 'Hades™', minutesPlayed: 60 })], {
-      platform: 'steam',
-    });
+    const plan = planSync(
+      items,
+      [steamGame({ externalId: '1145360', title: 'Hades™', minutesPlayed: 60 })],
+      {
+        platform: 'steam',
+      },
+    );
 
     expect(plan.adds).toHaveLength(0);
-    expect(plan.updates[0].gameId).toBe('g1');
-    expect(plan.updates[0].confidence).toBe('matched');
+    expect(plan.updates[0]!.gameId).toBe('g1');
+    expect(plan.updates[0]!.confidence).toBe('matched');
   });
 
   it('trusts an existing link above everything else', () => {
@@ -136,8 +144,8 @@ describe('a game already in the library', () => {
     });
 
     expect(plan.updates).toHaveLength(1);
-    expect(plan.updates[0].gameId).toBe('g1');
-    expect(plan.updates[0].confidence).toBe('exact');
+    expect(plan.updates[0]!.gameId).toBe('g1');
+    expect(plan.updates[0]!.confidence).toBe('exact');
   });
 
   it('does not merge two different games that merely share a word', () => {
@@ -154,7 +162,9 @@ describe('a game already in the library', () => {
 // ── Idempotency ─────────────────────────────────────────────────────────────
 
 describe('re-running a sync', () => {
-  const games = [steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200, lastPlayedAt: 1699 })];
+  const games = [
+    steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200, lastPlayedAt: 1699 }),
+  ];
 
   it('produces an empty plan when nothing changed', () => {
     const synced = [
@@ -183,9 +193,9 @@ describe('re-running a sync', () => {
 
     const plan = planSync(synced, games, { platform: 'steam' });
     expect(plan.updates).toHaveLength(1);
-    expect(plan.updates[0].previousMinutes).toBe(900);
-    expect(plan.updates[0].minutesPlayed).toBe(1200);
-    expect(plan.updates[0].newLink).toBe(false);
+    expect(plan.updates[0]!.previousMinutes).toBe(900);
+    expect(plan.updates[0]!.minutesPlayed).toBe(1200);
+    expect(plan.updates[0]!.newLink).toBe(false);
   });
 
   it('notices new achievement progress', () => {
@@ -194,7 +204,9 @@ describe('re-running a sync', () => {
         id: 'g1',
         title: 'Hades',
         links: [{ externalId: '1145360' }],
-        stats: [{ minutesPlayed: 1200, lastPlayedAt: 1699, achievements: { earned: 10, total: 49 } }],
+        stats: [
+          { minutesPlayed: 1200, lastPlayedAt: 1699, achievements: { earned: 10, total: 49 } },
+        ],
       }),
     ];
 
@@ -212,7 +224,7 @@ describe('re-running a sync', () => {
   });
 
   it('collapses a platform reporting the same appid twice', () => {
-    const plan = planSync([], [games[0], { ...games[0] }], { platform: 'steam' });
+    const plan = planSync([], [games[0]!, { ...games[0]! }], { platform: 'steam' });
     expect(plan.adds).toHaveLength(1);
   });
 });
@@ -221,27 +233,44 @@ describe('re-running a sync', () => {
 
 describe('playtime', () => {
   it('keeps a real zero as zero — owned but never launched is not "not reported"', () => {
-    const plan = planSync([], [steamGame({ externalId: '1', title: 'Untouched', minutesPlayed: 0 })], {
-      platform: 'steam',
-    });
-    expect(plan.adds[0].minutesPlayed).toBe(0);
-    expect(plan.adds[0].minutesPlayed).not.toBeNull();
+    const plan = planSync(
+      [],
+      [steamGame({ externalId: '1', title: 'Untouched', minutesPlayed: 0 })],
+      {
+        platform: 'steam',
+      },
+    );
+    expect(plan.adds[0]!.minutesPlayed).toBe(0);
+    expect(plan.adds[0]!.minutesPlayed).not.toBeNull();
   });
 
   it('keeps an unreported figure as null rather than inventing a zero', () => {
-    const plan = planSync([], [steamGame({ externalId: '1', title: 'Unknown', minutesPlayed: null })], {
-      platform: 'steam',
-    });
-    expect(plan.adds[0].minutesPlayed).toBeNull();
+    const plan = planSync(
+      [],
+      [steamGame({ externalId: '1', title: 'Unknown', minutesPlayed: null })],
+      {
+        platform: 'steam',
+      },
+    );
+    expect(plan.adds[0]!.minutesPlayed).toBeNull();
   });
 
   it('treats 0 and null as different states of the same game', () => {
     const zeroed = [
-      item({ id: 'g1', title: 'Untouched', links: [{ externalId: '1' }], stats: [{ minutesPlayed: 0 }] }),
+      item({
+        id: 'g1',
+        title: 'Untouched',
+        links: [{ externalId: '1' }],
+        stats: [{ minutesPlayed: 0 }],
+      }),
     ];
-    const plan = planSync(zeroed, [steamGame({ externalId: '1', title: 'Untouched', minutesPlayed: null })], {
-      platform: 'steam',
-    });
+    const plan = planSync(
+      zeroed,
+      [steamGame({ externalId: '1', title: 'Untouched', minutesPlayed: null })],
+      {
+        platform: 'steam',
+      },
+    );
     expect(plan.updates).toHaveLength(1);
   });
 });
@@ -263,9 +292,9 @@ describe('games IGDB does not know', () => {
       { platform: 'steam' },
     );
 
-    expect(plan.adds[0].unmatched).toBe(true);
-    expect(plan.adds[0].title).toBe('Some Delisted Demo');
-    expect(plan.adds[0].coverUrl).toBe('https://cdn.test/9999/header.jpg');
+    expect(plan.adds[0]!.unmatched).toBe(true);
+    expect(plan.adds[0]!.title).toBe('Some Delisted Demo');
+    expect(plan.adds[0]!.coverUrl).toBe('https://cdn.test/9999/header.jpg');
     expect(planCounts(plan).unmatched).toBe(1);
   });
 
@@ -273,16 +302,20 @@ describe('games IGDB does not know', () => {
     const plan = planSync([], [steamGame({ externalId: '9999', title: 'Some Delisted Demo' })], {
       platform: 'steam',
     });
-    expect(gameFieldsFor(plan.adds[0], 'steam').source).toBe('manual');
-    expect(gameFieldsFor(plan.adds[0], 'steam').platforms).toEqual(['steam']);
+    expect(gameFieldsFor(plan.adds[0]!, 'steam').source).toBe('manual');
+    expect(gameFieldsFor(plan.adds[0]!, 'steam').platforms).toEqual(['steam']);
   });
 
   it('prefers IGDB’s title and metadata when there is a match', () => {
-    const plan = planSync([], [steamGame({ externalId: '1145360', title: 'Hades™ Deluxe Edition' })], {
-      platform: 'steam',
-      metadata: { '1145360': metadata(1145, 'Hades') },
-    });
-    const fields = gameFieldsFor(plan.adds[0], 'steam');
+    const plan = planSync(
+      [],
+      [steamGame({ externalId: '1145360', title: 'Hades™ Deluxe Edition' })],
+      {
+        platform: 'steam',
+        metadata: { '1145360': metadata(1145, 'Hades') },
+      },
+    );
+    const fields = gameFieldsFor(plan.adds[0]!, 'steam');
     expect(fields.title).toBe('Hades');
     expect(fields.igdbId).toBe(1145);
     expect(fields.source).toBe('igdb');
@@ -333,16 +366,14 @@ describe('applying a plan', () => {
       steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200, lastPlayedAt: 1699 }),
     ]);
 
-    expect(results).toEqual([
-      expect.objectContaining({ outcome: 'added', externalId: '1145360' }),
-    ]);
+    expect(results).toEqual([expect.objectContaining({ outcome: 'added', externalId: '1145360' })]);
 
     const items = get(library);
     expect(items).toHaveLength(1);
-    expect(items[0].entry.status).toBe('backlog');
-    expect(items[0].links[0]).toMatchObject({ platform: 'steam', externalId: '1145360' });
-    expect(items[0].stats[0].minutesPlayed).toBe(1200);
-    expect(items[0].totalMinutes).toBe(1200);
+    expect(items[0]!.entry.status).toBe('backlog');
+    expect(items[0]!.links[0]!).toMatchObject({ platform: 'steam', externalId: '1145360' });
+    expect(items[0]!.stats[0]!.minutesPlayed).toBe(1200);
+    expect(items[0]!.totalMinutes).toBe(1200);
   });
 
   it('never touches a rating, review or shelf that the user wrote', async () => {
@@ -365,7 +396,7 @@ describe('applying a plan', () => {
     const items = get(library);
     expect(items).toHaveLength(1);
 
-    const entry = items[0].entry;
+    const entry = items[0]!.entry;
     expect(entry.status).toBe('played');
     expect(entry.rating).toBe(5);
     expect(entry.score).toBe(98);
@@ -377,21 +408,23 @@ describe('applying a plan', () => {
     expect(entry.tags).toEqual(['comfort']);
 
     // And the game did gain its Steam link and playtime.
-    expect(items[0].links).toHaveLength(1);
-    expect(items[0].stats[0].minutesPlayed).toBe(3000);
+    expect(items[0]!.links).toHaveLength(1);
+    expect(items[0]!.stats[0]!.minutesPlayed).toBe(3000);
   });
 
   it('is idempotent: a second run over unchanged data writes nothing', async () => {
-    const games = [steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200, lastPlayedAt: 1699 })];
+    const games = [
+      steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200, lastPlayedAt: 1699 }),
+    ];
 
     await sync(games);
-    const first = get(library)[0];
+    const first = get(library)[0]!;
 
     const { plan, results } = await sync(games);
     expect(planIsEmpty(plan)).toBe(true);
     expect(results).toEqual([]);
 
-    const second = get(library)[0];
+    const second = get(library)[0]!;
     expect(get(library)).toHaveLength(1);
     expect(second.links).toHaveLength(1);
     expect(second.stats).toHaveLength(1);
@@ -401,18 +434,18 @@ describe('applying a plan', () => {
 
   it('updates only the platform-sourced fields on a later run', async () => {
     await sync([steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1200 })]);
-    const before = get(library)[0];
+    const before = get(library)[0]!;
 
     const { results } = await sync([
       steamGame({ externalId: '1145360', title: 'Hades', minutesPlayed: 1500, lastPlayedAt: 42 }),
     ]);
 
-    expect(results[0].outcome).toBe('updated');
-    const after = get(library)[0];
+    expect(results[0]!.outcome).toBe('updated');
+    const after = get(library)[0]!;
     expect(after.stats).toHaveLength(1);
-    expect(after.stats[0].id).toBe(before.stats[0].id);
-    expect(after.stats[0].minutesPlayed).toBe(1500);
-    expect(after.stats[0].lastPlayedAt).toBe(42);
+    expect(after.stats[0]!.id).toBe(before.stats[0]!.id);
+    expect(after.stats[0]!.minutesPlayed).toBe(1500);
+    expect(after.stats[0]!.lastPlayedAt).toBe(42);
     expect(after.entry.updatedAt).toBe(before.entry.updatedAt);
   });
 
@@ -439,11 +472,11 @@ describe('applying a plan', () => {
 
     await db.clearPlatformData('steam');
     await refreshLibrary();
-    expect(get(library)[0].links).toHaveLength(0);
-    expect(get(library)[0].stats).toHaveLength(0);
+    expect(get(library)[0]!.links).toHaveLength(0);
+    expect(get(library)[0]!.stats).toHaveLength(0);
 
     await sync(games);
-    const item = get(library)[0];
+    const item = get(library)[0]!;
     // One live link and one live stat — not two of each.
     expect(item.links).toHaveLength(1);
     expect(item.stats).toHaveLength(1);
@@ -459,7 +492,7 @@ describe('applying a plan', () => {
     });
     await refreshLibrary();
 
-    expect(get(library)[0].stats[0].achievements).toEqual({ earned: 30, total: 49 });
+    expect(get(library)[0]!.stats[0]!.achievements).toEqual({ earned: 30, total: 49 });
   });
 
   it('keeps existing achievements when a sync did not fetch any', async () => {
@@ -476,8 +509,8 @@ describe('applying a plan', () => {
     });
     await refreshLibrary();
 
-    expect(get(library)[0].stats[0].achievements).toEqual({ earned: 30, total: 49 });
-    expect(get(library)[0].stats[0].minutesPlayed).toBe(1300);
+    expect(get(library)[0]!.stats[0]!.achievements).toEqual({ earned: 30, total: 49 });
+    expect(get(library)[0]!.stats[0]!.minutesPlayed).toBe(1300);
   });
 
   it('imports a large library without losing anything', async () => {

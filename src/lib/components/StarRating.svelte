@@ -77,7 +77,7 @@
     aria-label={label}
     tabindex="-1"
     bind:this={root}
-    onkeydown={onkeydown}
+    {onkeydown}
     onmouseleave={() => (hovered = undefined)}
   >
     <span class="glyphs" aria-hidden="true">
@@ -86,9 +86,8 @@
           <span class="empty">★</span>
           <span
             class="fill"
-            style="--fill: {shown == null
-              ? 0
-              : Math.min(1, Math.max(0, shown - (i - 1))) * 100}%">★</span
+            style="--fill: {shown == null ? 0 : Math.min(1, Math.max(0, shown - (i - 1))) * 100}%"
+            >★</span
           >
         </span>
       {/each}

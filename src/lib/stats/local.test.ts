@@ -35,7 +35,11 @@ describe('statistics with no connectors and no network', () => {
     });
     await addGame({ title: 'Tunic', status: 'backlog', genres: ['Adventure'] });
 
-    await updateEntry(hades!.entry, { rating: 5, favourite: true, startedAt: Date.UTC(2026, 1, 2) });
+    await updateEntry(hades!.entry, {
+      rating: 5,
+      favourite: true,
+      startedAt: Date.UTC(2026, 1, 2),
+    });
     await setStatus(get(library).find((i) => i.game.id === hades!.game.id)!.entry, 'played');
 
     const items = get(library);

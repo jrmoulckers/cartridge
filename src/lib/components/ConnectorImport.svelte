@@ -67,8 +67,8 @@
   {#if phase === 'reviewing' && counts && plan}
     {#if empty}
       <p class="muted">
-        Nothing to do — all {counts.unchanged} games {label} reports are already in your library
-        with the same playtime.
+        Nothing to do — all {counts.unchanged} games {label} reports are already in your library with
+        the same playtime.
       </p>
       <div class="row wrap">
         <button type="button" class="btn" onclick={resetSync}>Close</button>
@@ -80,14 +80,16 @@
           <strong>{counts.newLinks}</strong> games you already have will gain a {label} link
           <span class="muted">— your ratings, reviews and shelves are not touched</span>
         </li>
-        <li><strong>{counts.updates - counts.newLinks}</strong> will have their playtime refreshed</li>
+        <li>
+          <strong>{counts.updates - counts.newLinks}</strong> will have their playtime refreshed
+        </li>
         <li><strong>{counts.unchanged}</strong> are already up to date</li>
       </ul>
 
       {#if capabilities?.playtimeCoverage === 'partial'}
         <p class="muted hint">
-          {label} only reports time played for some games. The rest will say “Not reported” rather
-          than showing a made-up zero.
+          {label} only reports time played for some games. The rest will say “Not reported” rather than
+          showing a made-up zero.
         </p>
       {/if}
 
@@ -149,8 +151,8 @@
             {/each}
           </div>
           <p class="muted hint">
-            Only the {counts.adds} new games go here. Games already in your library keep the shelf
-            you put them on.
+            Only the {counts.adds} new games go here. Games already in your library keep the shelf you
+            put them on.
           </p>
         </fieldset>
 
@@ -202,11 +204,7 @@
       </details>
 
       <div class="row wrap">
-        <button
-          type="button"
-          class="btn primary"
-          onclick={() => commitSync({ status, shelfIds })}
-        >
+        <button type="button" class="btn primary" onclick={() => commitSync({ status, shelfIds })}>
           Import {counts.adds + counts.updates} games
         </button>
         <button type="button" class="btn ghost" onclick={resetSync}>Cancel</button>
