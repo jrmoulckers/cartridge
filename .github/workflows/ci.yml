@@ -79,11 +79,11 @@ jobs:
     secrets:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # UPSTREAM: reusable-security-ci does not yet accept registry-url/registry-scope
-  # (it was not part of jrmoulckers/.github#107, which only covered the six
-  # install-bearing workflows). Its `npm audit` resolves advisory metadata for
-  # @jrmoulckers/* from GitHub Packages and will 401 until the same inputs are
-  # added there. Re-pin and pass the inputs once that lands.
+  # reusable-security-ci deliberately gets no registry inputs and no packages: read.
+  # It has no install step, and `npm audit` resolves advisory data from the default
+  # registry rather than the scoped one, so it is unaffected by @jrmoulckers/* being
+  # private. Verified against a consumer run whose audit job passed while its install
+  # jobs were failing on the same lockfile. The workflow does not accept these inputs.
   security:
     permissions:
       contents: read
