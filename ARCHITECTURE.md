@@ -2,29 +2,27 @@
 
 ## The four non-negotiables
 
-Everything below exists to serve these. If a change breaks one of them, the change is wrong,
-however convenient it is.
+Everything below exists to serve these. If a change breaks one of them, the change is
+wrong, however convenient it is.
 
-None of the four is Cartridge's own invention. Each is an instance of a ratified principle owned
-by [jrmoulckers/engineering](https://github.com/jrmoulckers/engineering); the citation names the
-rule, and the sentence after it is the product-specific part — what "offline" or "degrades"
-concretely means for a games library, and where a test proves it.
+None of the four is Cartridge's own invention. Each is an instance of a ratified principle
+owned by [jrmoulckers/engineering](https://github.com/jrmoulckers/engineering); the citation
+names the rule, and the sentence after it is the product-specific part — what "offline" or
+"degrades" concretely means for a games library, and where a test proves it.
 
 1. **The app works fully offline with zero connectors attached.**
    [`ENG-LOCAL-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
-   and
-   [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md).
+   and [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md).
    Cartridge-specific: not "degrades gracefully" — _works_. Boot, add a game, shelve it, rate
-   it, review it, search it, back it up: all of it, with no network and no accounts. Enforced by
-   `src/lib/offline.test.ts`, which stubs `fetch` to reject and asserts it is never called.
+   it, review it, search it, back it up: all of it, with no network and no accounts. Enforced
+   by `src/lib/offline.test.ts`, which stubs `fetch` to reject and asserts it is never called.
 
 2. **No credential leaves the device except to the bridge, per request.**
    [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
-   and
-   [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md).
-   Cartridge-specific: platform credentials live in IndexedDB on the user's device. A connector
-   may send one to the bridge to make a call that requires it, for the duration of that call.
-   Nothing else.
+   and [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md).
+   Cartridge-specific: platform credentials live in IndexedDB on the user's device. A
+   connector may send one to the bridge to make a call that requires it, for the duration of
+   that call. Nothing else.
 
 3. **The bridge never persists a user's library.**
    A Cartridge convention, not a ratified rule; the obligation beneath it is the
@@ -39,11 +37,10 @@ concretely means for a games library, and where a test proves it.
 
 4. **A failing connector degrades one tab, never the whole app.**
    [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md);
-   see
-   [resilience](https://github.com/jrmoulckers/engineering/blob/main/practices/resilience.md).
-   Cartridge-specific: enforced structurally by `src/lib/connectors/registry.ts`, which catches
-   everything a connector can throw, records it against that platform alone, and returns it as a
-   value. Proven by `registry.test.ts`.
+   see [resilience](https://github.com/jrmoulckers/engineering/blob/main/practices/resilience.md).
+   Cartridge-specific: enforced structurally by `src/lib/connectors/registry.ts`, which
+   catches everything a connector can throw, records it against that platform alone, and
+   returns it as a value. Proven by `registry.test.ts`.
 
 ## The shape of it
 
@@ -93,8 +90,7 @@ product still does its job.
 
 The direction of the arrows is
 [`ENG-ARCH-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
-— see
-[frontend layering](https://github.com/jrmoulckers/engineering/blob/main/practices/frontend-layering.md).
+— see [frontend layering](https://github.com/jrmoulckers/engineering/blob/main/practices/frontend-layering.md).
 What follows is where each boundary lands in this repo.
 
 | Layer      | Path                                                                                  | Rule                                                                                            |
@@ -113,8 +109,7 @@ What follows is where each boundary lands in this repo.
 
 IndexedDB database `cartridge`, version 3. Merge behaviour follows
 [`ENG-LOCAL-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
-— see
-[local-first sync](https://github.com/jrmoulckers/engineering/blob/main/practices/local-first-sync.md).
+— see [local-first sync](https://github.com/jrmoulckers/engineering/blob/main/practices/local-first-sync.md).
 
 Cartridge-specific: every record carries `id`, `createdAt`, `updatedAt` and an optional
 `deleted` tombstone, the same per-entity shape `score-king` uses. Nothing merges yet, but
@@ -132,19 +127,19 @@ backups already round-trip tombstones, so a future sync layer drops in without a
 | `meta`                 | `key`      | —                                 | Schema version and app-level odds and ends.                                                                                                                       |
 
 `credentials` (added in v2) is deliberately outside the backup envelope. A backup is a file
-people email themselves and drop in cloud storage; an account credential does not belong in one,
-and re-connecting a platform takes two clicks. Phase 4 made that reasoning literal rather than
-precautionary: Xbox's credential is a long-lived API key, not a public account number. The
-visible cost is that a restore brings back platform links with no account behind them, so
-`needsReconnect` derives that state from the library and shows a reconnect prompt rather than
-letting a sync silently do nothing.
+people email themselves and drop in cloud storage; an account credential does not belong in
+one, and re-connecting a platform takes two clicks. Phase 4 made that reasoning literal rather
+than precautionary: Xbox's credential is a long-lived API key, not a public account number.
+The visible cost is that a restore brings
+back platform links with no account behind them, so `needsReconnect` derives that state from
+the library and shows a reconnect prompt rather than letting a sync silently do nothing.
 
-Deletes are **tombstoned cascades** — Cartridge's instance of `ENG-LOCAL-003`'s tombstone rule:
-removing a game marks the game, its entry, its links and its stats as deleted rather than
-dropping rows, so a restore on another device learns about the deletion too.
+Deletes are **tombstoned cascades** — Cartridge's instance of `ENG-LOCAL-003`'s tombstone
+rule: removing a game marks the game, its entry, its links and its stats as deleted rather
+than dropping rows, so a restore on another device learns about the deletion too.
 
-The whole library is loaded into memory on boot. A personal games library is small, and holding
-it in memory is what makes search instant and every screen work offline.
+The whole library is loaded into memory on boot. A personal games library is small, and
+holding it in memory is what makes search instant and every screen work offline.
 
 ### `playtimeObservations` is write-only on purpose — do not remove it
 
@@ -152,20 +147,20 @@ it in memory is what makes search instant and every screen work offline.
 
 Steam and Xbox report a _lifetime_ playtime total and a last-played date. Neither windows
 playtime to a period, which is why the year in review refuses to claim hours-played-in-a-year
-(see [Statistics](#statistics-phase-7)). The difference between two readings of a lifetime total
-**is** the playtime between them — so on every sync, at the one point in `apply.ts` where
-playtime enters the database, the reading is appended here alongside the `SessionStat` it
-updates.
+(see [Statistics](#statistics-phase-7)). The difference between two readings of a lifetime
+total **is** the playtime between them — so on every sync, at the one point in `apply.ts`
+where playtime enters the database, the reading is appended here alongside the `SessionStat`
+it updates.
 
-The value of this store is strictly a function of how early it started. It can only ever answer
-for the window it has been collecting over, so it collects from v3 onward whether or not
-anything is ready to ask. Deleting it as unused would not free a feature's worth of code; it
-would throw away time that cannot be re-fetched, and reset the clock on the first honest "hours
-this year" to whenever someone re-adds it.
+The value of this store is strictly a function of how early it started. It can only ever
+answer for the window it has been collecting over, so it collects from v3 onward whether or
+not anything is ready to ask. Deleting it as unused would not free a feature's worth of code;
+it would throw away time that cannot be re-fetched, and reset the clock on the first honest
+"hours this year" to whenever someone re-adds it.
 
-It also repairs a second, quieter loss. A platform reports only the **last** time you played a
-game, so replaying something in 2026 silently erases the evidence that 2025 ever touched it.
-`SessionStat` is overwritten; the observation log remembers.
+It also repairs a second, quieter loss. A platform reports only the **last** time you played
+a game, so replaying something in 2026 silently erases the evidence that 2025 ever touched
+it. `SessionStat` is overwritten; the observation log remembers.
 
 Four rules hold it together:
 
@@ -184,21 +179,22 @@ runs of identical `minutesPlayed` is the obvious fix and stays available.
 A stateless Cloudflare Worker. It exists because IGDB requires a client secret a static PWA
 cannot hold, and because neither the Steam Web API nor OpenXBL will answer a browser directly.
 
-- **Auth**: Twitch client-credentials, token cached in KV until shortly before expiry, never
-  returned to the client. Xbox needs no bridge secret — the key is the user's and arrives per
-  request.
-- **Normalization**: IGDB responses are mapped to Cartridge's `GameMetadata` in the worker. The
-  app never sees an IGDB field name, so an upstream schema change is a bridge deploy.
-- **Cache**: search 24h, game 7d in KV; `Cache-Control` echoed to the browser. Steam achievement
-  schemas and appid → IGDB mappings cache for 30 days, keyed by appid, and title → IGDB matches
-  for 7 days keyed by the normalised title — public facts about a game, not about a person.
+- **Auth**: Twitch client-credentials, token cached in KV until shortly before expiry,
+  never returned to the client. Xbox needs no bridge secret — the key is the user's and
+  arrives per request.
+- **Normalization**: IGDB responses are mapped to Cartridge's `GameMetadata` in the worker.
+  The app never sees an IGDB field name, so an upstream schema change is a bridge deploy.
+- **Cache**: search 24h, game 7d in KV; `Cache-Control` echoed to the browser. Steam
+  achievement schemas and appid → IGDB mappings cache for 30 days, keyed by appid, and
+  title → IGDB matches for 7 days keyed by the normalised title — public
+  facts about a game, not about a person.
 - **Hardening**: exact-match CORS allowlist, `GET` only, bounded input, per-IP throttle, one
   error envelope, no upstream stack traces.
 
 The allowlist stops browsers, not `curl` — `Origin` is a header, and a header is whatever the
-sender says it is. So a deployed bridge is, in practice, an open Steam and IGDB proxy backed by
-the deployer's keys for anyone who learns the URL and an allowed origin. Closing that needs real
-authentication, which needs an account system Cartridge deliberately doesn't have.
+sender says it is. So a deployed bridge is, in practice, an open Steam and IGDB proxy backed
+by the deployer's keys for anyone who learns the URL and an allowed origin. Closing that needs
+real authentication, which needs an account system Cartridge deliberately doesn't have.
 `bridge/README.md`'s "Residual risk" section spells this out so nobody deploys it without
 knowing. Xbox is the exception that proves the shape of the problem: there is no bridge-held
 Xbox key to spend, so `/xbox/*` is useless to a caller who hasn't brought their own.
@@ -226,16 +222,16 @@ rate-limited or returning nonsense degrades that platform's tab and nothing else
 
 Syncing is deliberately two steps:
 
-1. **Plan** — `connectors/sync.ts`, pure. Takes the library, what the platform reports and what
-   IGDB matched, and returns a `SyncPlan`: what would be added, what already exists and would
-   gain a link, what is unchanged, what couldn't be identified. No DOM, no IndexedDB, no network
-   — which is why the rules that matter can be proven rather than promised.
-2. **Apply** — `connectors/apply.ts`, a thin writer. Creates games, links and stats; creates an
-   `Entry` for a genuinely new game and **never modifies an existing one**. A plan has no
+1. **Plan** — `connectors/sync.ts`, pure. Takes the library, what the platform reports and
+   what IGDB matched, and returns a `SyncPlan`: what would be added, what already exists and
+   would gain a link, what is unchanged, what couldn't be identified. No DOM, no IndexedDB,
+   no network — which is why the rules that matter can be proven rather than promised.
+2. **Apply** — `connectors/apply.ts`, a thin writer. Creates games, links and stats; creates
+   an `Entry` for a genuinely new game and **never modifies an existing one**. A plan has no
    vocabulary for changing a rating, a review, a status or a shelf, so it cannot.
 
-Identification runs in descending order of trust: an existing platform link, then a shared IGDB
-id, then `metadata/match.ts`'s conservative title matcher. `null` is a good answer — an
+Identification runs in descending order of trust: an existing platform link, then a shared
+IGDB id, then `metadata/match.ts`'s conservative title matcher. `null` is a good answer — an
 unrecognised game becomes a new row, which is a small annoyance, where a wrong match silently
 merges two games and takes a rating and a review with it.
 
@@ -260,12 +256,12 @@ knowledge; replacing a value is an opinion about someone else's library.
 
 ### Xbox (phase 4)
 
-The second connector, and the one that tested whether the interface generalised. It mostly did:
-three **additive** changes were all it needed — the evolution
+The second connector, and the one that tested whether the interface generalised. It mostly
+did: three **additive** changes were all it needed — the evolution
 [`ENG-ARCH-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
-asks for — `Capabilities.playtimeCoverage`, `ConnectorGame.achievements` and
-`SyncPlan.matchingIncomplete`. Each is documented where it is declared, with the Xbox fact that
-forced it.
+asks for — `Capabilities.playtimeCoverage`,
+`ConnectorGame.achievements` and `SyncPlan.matchingIncomplete`. Each is documented where it is
+declared, with the Xbox fact that forced it.
 
 | Piece      | Where                                                                                                                                                                                                                                                                        |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -297,14 +293,14 @@ figures come out of memory, so the whole surface works offline with zero connect
 
 ### The design problem: a number with no denominator is a lie
 
-Cartridge's data is structurally incomplete on purpose. Steam reports playtime, Xbox reports it
-for some titles, PlayStation reports none. A game can be finished with no finish date or rated
-with no review. So the type system is what stops a partial number being rendered as a complete
-one: a component is handed a `Measure`, never a bare figure, and cannot show "412 hours" without
-the "across 38 of your 91 games" that makes it true. A measure that cannot be computed honestly
-is `null` **with a reason**, and the UI renders the reason where the number would have gone.
-`null` playtime is never summed as `0`; a real `0` is counted separately, because "owned, never
-launched" is a genuine and interesting fact.
+Cartridge's data is structurally incomplete on purpose. Steam reports playtime, Xbox reports
+it for some titles, PlayStation reports none. A game can be finished with no finish date or
+rated with no review. So the type system is what stops a partial number being rendered as a
+complete one: a component is handed a `Measure`, never a bare figure, and cannot show "412
+hours" without the "across 38 of your 91 games" that makes it true. A measure that cannot be
+computed honestly is `null` **with a reason**, and the UI renders the reason where the number
+would have gone. `null` playtime is never summed as `0`; a real `0` is counted separately,
+because "owned, never launched" is a genuine and interesting fact.
 
 The wording lives in `format.ts` rather than in the two pages, so honesty is a tested function
 instead of fifty strings that drift by the third change. A _complete_ measure renders no
@@ -324,8 +320,8 @@ stated on the page rather than hidden:
 | **Hours played in a year are never claimed.**                                    | Nothing in `SessionStat` windows playtime to a period; the figure does not exist to be computed. The page reports _lifetime_ playtime behind the year's games, labelled as such. `playtimeObservations` is the groundwork for changing that — but only for windows it has been collecting over. |
 
 The same reasoning omits "biggest surprise" (no expectation is ever recorded, so a proxy would
-be fabricated) and any HowLongToBeat-style length estimate (no HLTB integration, and IGDB has no
-reliable completion times).
+be fabricated) and any HowLongToBeat-style length estimate (no HLTB integration, and IGDB has
+no reliable completion times).
 
 ### Performance and payload
 
@@ -335,10 +331,11 @@ enforced in CI by the `perf` job's `bundle-budget-kb` — see
 [performance budgets](https://github.com/jrmoulckers/engineering/blob/main/practices/performance-budgets.md).
 
 `computeStats` is one pass with no sorting inside the loop; `compute.test.ts` asserts a
-2,000-game library stays inside a bound, which is why the pages compute in a `$derived` instead
-of behind a scheduler. The two screens are `import()`ed on demand — they are the only ones you
-can go a week without opening — so the first payload is within ~1 kB gzipped of what it was
-before the phase, and the chunks are precached by the service worker so they still open offline.
+2,000-game library stays inside a bound, which is why the pages compute in a `$derived`
+instead of behind a scheduler. The two screens are `import()`ed on demand — they are the only
+ones you can go a week without opening — so the first payload is within ~1 kB gzipped of what
+it was before the phase, and the chunks are precached by the service worker so they still open
+offline.
 
 ## Failure modes, and what the user sees
 
@@ -366,28 +363,28 @@ before the phase, and the chunks are precached by the service worker so they sti
 Cartridge consumes the JRM Studio backbone rather than inventing its own foundations:
 
 - **`vendor/@jrm/tokens`** — the DTCG token distribution, vendored verbatim from
-  `jrmoulckers/studio` (registry-free "Option A" sync). `src/app.css` imports it and defines
-  only short local aliases on top. No component hard-codes a colour or a spacing.
+  `jrmoulckers/studio` (registry-free "Option A" sync). `src/app.css` imports it and
+  defines only short local aliases on top. No component hard-codes a colour or a spacing.
 - **`.github/`** — synced canon from `jrmoulckers/.github`: agents, skills, prompts,
-  instructions, reusable workflows and health files. Synced files carry a provenance header and
-  must not be hand-edited.
+  instructions, reusable workflows and health files. Synced files carry a provenance header
+  and must not be hand-edited.
 - **`jrmoulckers/engineering`** — the ratified `ENG-*` principles, consumed **by citation
-  only**. Nothing is copied or vendored: where a rule is Engineering's, this document names the
-  ID and then says only what is Cartridge-specific about it. Resolve any ID through
+  only**. Nothing is copied or vendored: where a rule is Engineering's, this document names
+  the ID and then says only what is Cartridge-specific about it. Resolve any ID through
   `principles/index.json` in that repo.
 - **`AGENTS.md`** — product-local rules, with the managed studio base between
   `<!-- studio:base:start -->` and `<!-- studio:base:end -->`.
 
-**Needs human action:** `jrmoulckers/cartridge` is not yet a member in `jrmoulckers/.github`'s
-`studio.config.json`. Until it is, the vendored tokens and canon are a point-in-time copy rather
-than an automatically synced one. See `vendor/README.md`.
+**Needs human action:** `jrmoulckers/cartridge` is not yet a member in
+`jrmoulckers/.github`'s `studio.config.json`. Until it is, the vendored tokens and canon are
+a point-in-time copy rather than an automatically synced one. See `vendor/README.md`.
 
 ## Testing
 
 Static signals stay separate from behaviour tests, per
 [`ENG-TEST-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md):
-`npm run check`, `npm test` and `npm run build` each report on their own and are not collapsed
-into one script.
+`npm run check`, `npm test` and `npm run build` each report on their own and are not
+collapsed into one script.
 
 `npm test` — Vitest, jsdom, no browser needed.
 
