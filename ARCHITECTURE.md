@@ -25,8 +25,13 @@ names the rule, and the sentence after it is the product-specific part — what 
    that call. Nothing else.
 
 3. **The bridge never persists a user's library.**
-   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
-   and [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md).
+   A Cartridge convention, not a ratified rule; the obligation beneath it is the
+   data-minimization half of
+   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md).
+   Its lifecycle-evidence half does not bind here, and that is the point: storing nothing
+   personal means there is no collection, retention, export or deletion to produce evidence
+   for. [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+   *additionally* holds the bridge's own credentials to least authority.
    Cartridge-specific: it caches public IGDB metadata and its own Twitch app token. It has no
    endpoint that accepts user data, no cookies, no identifiers, no request-body logs.
 
