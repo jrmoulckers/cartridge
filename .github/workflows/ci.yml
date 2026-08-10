@@ -17,7 +17,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -28,8 +28,6 @@ jobs:
       artifact-path: dist
       registry-url: https://npm.pkg.github.com
       registry-scope: '@jrmoulckers'
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   preview:
     if: github.event_name == 'pull_request'
@@ -37,21 +35,19 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
       registry-url: https://npm.pkg.github.com
       registry-scope: '@jrmoulckers'
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   perf:
     needs: web
     permissions:
       contents: read
       packages: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
@@ -59,15 +55,13 @@ jobs:
       lighthouse-public-upload: false
       registry-url: https://npm.pkg.github.com
       registry-scope: '@jrmoulckers'
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   lint:
     permissions:
       contents: read
       packages: read
       pull-requests: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -76,8 +70,6 @@ jobs:
       semantic-pr-title: true
       registry-url: https://npm.pkg.github.com
       registry-scope: '@jrmoulckers'
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # reusable-security-ci deliberately gets no registry inputs and no packages: read.
   # It has no install step, and `npm audit` resolves advisory data from the default
@@ -87,7 +79,7 @@ jobs:
   security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -97,7 +89,7 @@ jobs:
   bridge-security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     with:
       node-version: '22'
       package-manager: npm
