@@ -16,7 +16,7 @@ jobs:
   web:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -31,7 +31,7 @@ jobs:
     needs: web
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
@@ -40,7 +40,7 @@ jobs:
     needs: web
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
@@ -52,7 +52,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -63,7 +63,7 @@ jobs:
   security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -73,7 +73,7 @@ jobs:
   bridge-security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
     with:
       node-version: '22'
       package-manager: npm

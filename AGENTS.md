@@ -81,7 +81,7 @@ engine's hash tracking, or it forks a file that then silently goes stale.
 | `AGENTS.md` between `studio:base:start` / `studio:base:end` | Merged in by the sync engine | Edit only *outside* the markers. Everything above this line is product-authored and safe to change. |
 | `.studio-sync.lock.json` | The sync engine | Never create by hand. |
 | `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/DISCUSSION_TEMPLATE/` | **GitHub inherits these automatically** from `jrmoulckers/.github` | Do not add them here. A local copy overrides the inherited one and stops tracking upstream. |
-| `.github/workflows/reusable-*.yml` | Referenced by ref, never copied | Call them as `jrmoulckers/.github/.github/workflows/<name>.yml@main`. A vendored copy is a stale fork. |
+| `.github/workflows/reusable-*.yml` | Referenced by ref, never copied | Call them as `jrmoulckers/.github/.github/workflows/<name>.yml@<40-char-sha>` with a trailing `# main` comment, per `GH-ACT-003`. A vendored copy is a stale fork. |
 
 `.github/workflows/ci.yml` is the exception: it is product-owned forever. The sync engine
 reports reusable workflows as "native" but never writes them, so wiring and inputs are ours.

@@ -5,23 +5,37 @@
 Everything below exists to serve these. If a change breaks one of them, the change is
 wrong, however convenient it is.
 
+None of the four is Cartridge's own invention. Each is an instance of a ratified principle
+owned by [jrmoulckers/engineering](https://github.com/jrmoulckers/engineering); the citation
+names the rule, and the sentence after it is the product-specific part — what "offline" or
+"degrades" concretely means for a games library, and where a test proves it.
+
 1. **The app works fully offline with zero connectors attached.**
-   Not "degrades gracefully" — *works*. Boot, add a game, shelve it, rate it, review it,
-   search it, back it up: all of it, with no network and no accounts. Enforced by
-   `src/lib/offline.test.ts`, which stubs `fetch` to reject and asserts it is never called.
+   [`ENG-LOCAL-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+   and [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md).
+   Cartridge-specific: not "degrades gracefully" — *works*. Boot, add a game, shelve it, rate
+   it, review it, search it, back it up: all of it, with no network and no accounts. Enforced
+   by `src/lib/offline.test.ts`, which stubs `fetch` to reject and asserts it is never called.
 
 2. **No credential leaves the device except to the bridge, per request.**
-   Platform credentials live in IndexedDB on the user's device. A connector may send one to
-   the bridge to make a call that requires it, for the duration of that call. Nothing else.
+   [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+   and [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md).
+   Cartridge-specific: platform credentials live in IndexedDB on the user's device. A
+   connector may send one to the bridge to make a call that requires it, for the duration of
+   that call. Nothing else.
 
 3. **The bridge never persists a user's library.**
-   It caches public IGDB metadata and its own Twitch app token. It has no endpoint that
-   accepts user data, no cookies, no identifiers, no request-body logs.
+   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+   and [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md).
+   Cartridge-specific: it caches public IGDB metadata and its own Twitch app token. It has no
+   endpoint that accepts user data, no cookies, no identifiers, no request-body logs.
 
 4. **A failing connector degrades one tab, never the whole app.**
-   Enforced structurally by `src/lib/connectors/registry.ts`, which catches everything a
-   connector can throw, records it against that platform alone, and returns it as a value.
-   Proven by `registry.test.ts`.
+   [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md);
+   see [resilience](https://github.com/jrmoulckers/engineering/blob/main/practices/resilience.md).
+   Cartridge-specific: enforced structurally by `src/lib/connectors/registry.ts`, which
+   catches everything a connector can throw, records it against that platform alone, and
+   returns it as a value. Proven by `registry.test.ts`.
 
 ## The shape of it
 
@@ -69,6 +83,11 @@ product still does its job.
 
 ## Layers
 
+The direction of the arrows is
+[`ENG-ARCH-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+— see [frontend layering](https://github.com/jrmoulckers/engineering/blob/main/practices/frontend-layering.md).
+What follows is where each boundary lands in this repo.
+
 | Layer | Path | Rule |
 | --- | --- | --- |
 | Types | `src/lib/types.ts` | The domain vocabulary. No behaviour. |
@@ -83,10 +102,13 @@ product still does its job.
 
 ## Data model
 
-IndexedDB database `cartridge`, version 3. Every record carries `id`, `createdAt`,
-`updatedAt` and an optional `deleted` tombstone — the per-entity last-writer-wins shape
-`score-king` uses. Nothing merges yet, but backups already round-trip tombstones, so a
-future sync layer drops in without a migration.
+IndexedDB database `cartridge`, version 3. Merge behaviour follows
+[`ENG-LOCAL-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+— see [local-first sync](https://github.com/jrmoulckers/engineering/blob/main/practices/local-first-sync.md).
+
+Cartridge-specific: every record carries `id`, `createdAt`, `updatedAt` and an optional
+`deleted` tombstone, the same per-entity shape `score-king` uses. Nothing merges yet, but
+backups already round-trip tombstones, so a future sync layer drops in without a migration.
 
 | Store | Key | Indexes | Holds |
 | --- | --- | --- | --- |
@@ -107,9 +129,9 @@ The visible cost is that a restore brings
 back platform links with no account behind them, so `needsReconnect` derives that state from
 the library and shows a reconnect prompt rather than letting a sync silently do nothing.
 
-Deletes are **tombstoned cascades**: removing a game marks the game, its entry, its links
-and its stats as deleted rather than dropping rows, so a restore on another device learns
-about the deletion too.
+Deletes are **tombstoned cascades** — Cartridge's instance of `ENG-LOCAL-003`'s tombstone
+rule: removing a game marks the game, its entry, its links and its stats as deleted rather
+than dropping rows, so a restore on another device learns about the deletion too.
 
 The whole library is loaded into memory on boot. A personal games library is small, and
 holding it in memory is what makes search instant and every screen work offline.
@@ -181,6 +203,10 @@ See `bridge/README.md` for the secrets and how to obtain them.
 
 ## Connectors
 
+Connectors are Cartridge's instance of
+[`ENG-LOCAL-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md):
+one narrow provider contract that core local operation never waits on.
+
 A connector answers four questions about a platform — who you are, what you own, what you've
 played lately, and how far through the achievements you are — and nothing else. The registry
 wraps every call in a boundary that turns a throw into a value, so a platform that is down,
@@ -223,7 +249,9 @@ knowledge; replacing a value is an opinion about someone else's library.
 ### Xbox (phase 4)
 
 The second connector, and the one that tested whether the interface generalised. It mostly
-did: three **additive** changes were all it needed — `Capabilities.playtimeCoverage`,
+did: three **additive** changes were all it needed — the evolution
+[`ENG-ARCH-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+asks for — `Capabilities.playtimeCoverage`,
 `ConnectorGame.achievements` and `SyncPlan.matchingIncomplete`. Each is documented where it is
 declared, with the Xbox fact that forced it.
 
@@ -289,6 +317,11 @@ no reliable completion times).
 
 ### Performance and payload
 
+The delivery budget is
+[`ENG-WEB-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md),
+enforced in CI by the `perf` job's `bundle-budget-kb` — see
+[performance budgets](https://github.com/jrmoulckers/engineering/blob/main/practices/performance-budgets.md).
+
 `computeStats` is one pass with no sorting inside the loop; `compute.test.ts` asserts a
 2,000-game library stays inside a bound, which is why the pages compute in a `$derived`
 instead of behind a scheduler. The two screens are `import()`ed on demand — they are the only
@@ -327,6 +360,10 @@ Cartridge consumes the JRM Studio backbone rather than inventing its own foundat
 - **`.github/`** — synced canon from `jrmoulckers/.github`: agents, skills, prompts,
   instructions, reusable workflows and health files. Synced files carry a provenance header
   and must not be hand-edited.
+- **`jrmoulckers/engineering`** — the ratified `ENG-*` principles, consumed **by citation
+  only**. Nothing is copied or vendored: where a rule is Engineering's, this document names
+  the ID and then says only what is Cartridge-specific about it. Resolve any ID through
+  `principles/index.json` in that repo.
 - **`AGENTS.md`** — product-local rules, with the managed studio base between
   `<!-- studio:base:start -->` and `<!-- studio:base:end -->`.
 
@@ -335,6 +372,11 @@ Cartridge consumes the JRM Studio backbone rather than inventing its own foundat
 a point-in-time copy rather than an automatically synced one. See `vendor/README.md`.
 
 ## Testing
+
+Static signals stay separate from behaviour tests, per
+[`ENG-TEST-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md):
+`npm run check`, `npm test` and `npm run build` each report on their own and are not
+collapsed into one script.
 
 `npm test` — Vitest, jsdom, no browser needed.
 
