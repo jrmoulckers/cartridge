@@ -19,6 +19,9 @@ vendor
 .github/skills
 .github/prompts
 .github/instructions
+# Not present today, but listed so a future canon sync cannot turn format:check
+# red on a branch that never touched it.
+.github/copilot-instructions.md
 
 # Partly upstream-owned: the studio:base region is merged in by the sync engine.
 AGENTS.md
