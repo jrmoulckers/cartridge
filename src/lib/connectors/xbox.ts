@@ -26,7 +26,13 @@
  * simply absent. Cartridge cannot invent it, and pretending otherwise would be the same class
  * of lie as a fabricated `0`.
  */
-import { ConnectorError, type Connector, type Credentials, type FetchOptions, type Page } from './types';
+import {
+  ConnectorError,
+  type Connector,
+  type Credentials,
+  type FetchOptions,
+  type Page,
+} from './types';
 import type { ConnectorAchievements, ConnectorGame } from './types';
 import type {
   XboxAccount,
@@ -143,7 +149,9 @@ function toConnectorGame(game: XboxGame): ConnectorGame | null {
   if (!game || typeof game.titleId !== 'string' || !/^\d+$/.test(game.titleId)) return null;
 
   const title =
-    typeof game.title === 'string' && game.title.trim() ? game.title.trim() : `Title ${game.titleId}`;
+    typeof game.title === 'string' && game.title.trim()
+      ? game.title.trim()
+      : `Title ${game.titleId}`;
 
   const converted: ConnectorGame = {
     externalId: game.titleId,
@@ -151,9 +159,10 @@ function toConnectorGame(game: XboxGame): ConnectorGame | null {
     // `null` unless Xbox actually reported a number. Never a stand-in zero — on Xbox an
     // absent figure means "this title doesn't report minutes", which is not the same fact as
     // "you have never played it".
-    minutesPlayed: typeof game.minutesPlayed === 'number' && Number.isFinite(game.minutesPlayed)
-      ? game.minutesPlayed
-      : null,
+    minutesPlayed:
+      typeof game.minutesPlayed === 'number' && Number.isFinite(game.minutesPlayed)
+        ? game.minutesPlayed
+        : null,
   };
 
   if (typeof game.lastPlayedAt === 'number' && game.lastPlayedAt > 0) {
@@ -338,7 +347,10 @@ export const xboxConnector: Connector = {
   async fetchAchievements(options): Promise<Page<ConnectorAchievements>> {
     const { apiKey, xuid } = credentialsFrom(options.credentials);
     const ids = [
-      ...new Set([...(options.externalIds ?? []), ...(options.externalId ? [options.externalId] : [])]),
+      ...new Set([
+        ...(options.externalIds ?? []),
+        ...(options.externalId ? [options.externalId] : []),
+      ]),
     ]
       .filter((id) => /^\d+$/.test(id))
       .slice(0, ACHIEVEMENT_BATCH);

@@ -16,7 +16,8 @@ jobs:
   web:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+      packages: read
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     with:
       node-version: '22'
       package-manager: npm
@@ -25,45 +26,68 @@ jobs:
       build-command: npm run build
       artifact-name: web-build
       artifact-path: dist
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   preview:
     if: github.event_name == 'pull_request'
     needs: web
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+      packages: read
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   perf:
     needs: web
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+      packages: read
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
       bundle-budget-kb: 2048
       lighthouse-public-upload: false
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Cartridge has no transported lint or format presets, so only the title check runs.
   lint:
     permissions:
       contents: read
+      packages: read
       pull-requests: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     with:
       node-version: '22'
       package-manager: npm
-      lint-command: ''
-      format-check-command: ''
+      lint-command: npm run lint
+      format-check-command: npm run format:check
       semantic-pr-title: true
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # UPSTREAM: reusable-security-ci does not yet accept registry-url/registry-scope
+  # (it was not part of jrmoulckers/.github#107, which only covered the six
+  # install-bearing workflows). Its `npm audit` resolves advisory metadata for
+  # @jrmoulckers/* from GitHub Packages and will 401 until the same inputs are
+  # added there. Re-pin and pass the inputs once that lands.
   security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     with:
       node-version: '22'
       package-manager: npm
@@ -73,7 +97,7 @@ jobs:
   bridge-security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     with:
       node-version: '22'
       package-manager: npm

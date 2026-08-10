@@ -93,11 +93,11 @@ describe('upgrading a v2 database to v3', () => {
     const entries = await db.getAllEntries();
     expect(entries).toHaveLength(1);
     // The user's own work is what an upgrade must never cost them.
-    expect(entries[0].rating).toBe(5);
-    expect(entries[0].review).toBe('Still perfect.');
+    expect(entries[0]!.rating).toBe(5);
+    expect(entries[0]!.review).toBe('Still perfect.');
 
     const stats = await db.getAllStats();
-    expect(stats[0].minutesPlayed).toBe(600);
+    expect(stats[0]!.minutesPlayed).toBe(600);
 
     // And the new store exists, empty, ready to start collecting.
     expect(await db.getAllObservations()).toEqual([]);

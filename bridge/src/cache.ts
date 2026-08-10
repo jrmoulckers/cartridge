@@ -63,7 +63,12 @@ export async function readCache<T>(env: Env, key: string): Promise<T | null> {
   }
 }
 
-export async function writeCache(env: Env, key: string, value: unknown, ttl: number): Promise<void> {
+export async function writeCache(
+  env: Env,
+  key: string,
+  value: unknown,
+  ttl: number,
+): Promise<void> {
   try {
     await env.METADATA.put(key, JSON.stringify(value), { expirationTtl: ttl });
   } catch {

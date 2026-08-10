@@ -35,13 +35,11 @@ describe('the app with no connectors and no network', () => {
     await refreshLibrary();
 
     // The five built-in shelves exist on a first run.
-    expect(get(shelves).filter((s) => s.builtinStatus).map((s) => s.builtinStatus)).toEqual([
-      'playing',
-      'backlog',
-      'played',
-      'wishlist',
-      'abandoned',
-    ]);
+    expect(
+      get(shelves)
+        .filter((s) => s.builtinStatus)
+        .map((s) => s.builtinStatus),
+    ).toEqual(['playing', 'backlog', 'played', 'wishlist', 'abandoned']);
 
     // Manual entry: no metadata lookup, no bridge, no account.
     const added = await addGame({
@@ -69,10 +67,10 @@ describe('the app with no connectors and no network', () => {
     });
 
     // Finishing stamps a finish date.
-    const rated = get(library)[0];
+    const rated = get(library)[0]!;
     await setStatus(rated.entry, 'played');
 
-    const item = get(library)[0];
+    const item = get(library)[0]!;
     expect(item.entry.rating).toBe(4.5);
     expect(item.entry.score).toBe(92);
     expect(item.entry.status).toBe('played');
@@ -96,7 +94,7 @@ describe('the app with no connectors and no network', () => {
     await refreshLibrary();
     await refreshShelves();
 
-    const restored = get(library)[0];
+    const restored = get(library)[0]!;
     expect(restored.game.title).toBe('Outer Wilds');
     expect(restored.entry.rating).toBe(4.5);
     expect(restored.entry.review).toContain('Best');

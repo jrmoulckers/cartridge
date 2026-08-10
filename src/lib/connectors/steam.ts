@@ -20,13 +20,15 @@
  * 3. **A private profile is its own outcome.** Not `auth` — the credential is fine and
  *    reconnecting will not help. It gets `kind: 'private'` and a link to the exact setting.
  */
-import { ConnectorError, type Connector, type Credentials, type FetchOptions, type Page } from './types';
+import {
+  ConnectorError,
+  type Connector,
+  type Credentials,
+  type FetchOptions,
+  type Page,
+} from './types';
 import type { ConnectorAchievements, ConnectorGame } from './types';
-import type {
-  SteamAchievementsResponse,
-  SteamGame,
-  SteamLibraryResponse,
-} from '../metadata/types';
+import type { SteamAchievementsResponse, SteamGame, SteamLibraryResponse } from '../metadata/types';
 import { bridgeRequest, bridgeBase, type BridgeFailure } from '../metadata/igdb';
 
 /** A SteamID64 is always seventeen digits. */
@@ -99,19 +101,20 @@ function toConnectorGame(game: SteamGame): ConnectorGame | null {
   if (!game || typeof game.appid !== 'string' || !game.appid) return null;
   return {
     externalId: game.appid,
-    title: typeof game.title === 'string' && game.title.trim() ? game.title.trim() : `App ${game.appid}`,
+    title:
+      typeof game.title === 'string' && game.title.trim() ? game.title.trim() : `App ${game.appid}`,
     // Preserved exactly, including a real `0`. Anything non-numeric becomes `null` rather
     // than a made-up number.
     minutesPlayed: typeof game.minutesPlayed === 'number' ? game.minutesPlayed : null,
-    lastPlayedAt: typeof game.lastPlayedAt === 'number' && game.lastPlayedAt > 0 ? game.lastPlayedAt : undefined,
+    lastPlayedAt:
+      typeof game.lastPlayedAt === 'number' && game.lastPlayedAt > 0
+        ? game.lastPlayedAt
+        : undefined,
     imageUrl: typeof game.imageUrl === 'string' ? game.imageUrl : undefined,
   };
 }
 
-async function fetchGames(
-  path: string,
-  options: FetchOptions,
-): Promise<Page<ConnectorGame>> {
+async function fetchGames(path: string, options: FetchOptions): Promise<Page<ConnectorGame>> {
   const steamId = steamIdFrom(options.credentials);
   const result = await bridgeRequest<SteamLibraryResponse>(
     `${path}?steamid=${steamId}`,
@@ -179,7 +182,12 @@ export const steamConnector: Connector = {
    */
   async fetchAchievements(options): Promise<Page<ConnectorAchievements>> {
     const steamId = steamIdFrom(options.credentials);
-    const ids = [...new Set([...(options.externalIds ?? []), ...(options.externalId ? [options.externalId] : [])])]
+    const ids = [
+      ...new Set([
+        ...(options.externalIds ?? []),
+        ...(options.externalId ? [options.externalId] : []),
+      ]),
+    ]
       .filter((id) => /^\d+$/.test(id))
       .slice(0, ACHIEVEMENT_BATCH);
     if (!ids.length) return { items: [] };

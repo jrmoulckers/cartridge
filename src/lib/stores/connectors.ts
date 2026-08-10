@@ -17,7 +17,11 @@ import { writable, derived, get } from 'svelte/store';
 import type { Achievements, ID, Platform, Status } from '../types';
 import * as db from '../storage/db';
 import { library, links, refreshLibrary } from './library';
-import { fetchLibrary as boundedFetchLibrary, fetchAchievements, getConnector } from '../connectors/registry';
+import {
+  fetchLibrary as boundedFetchLibrary,
+  fetchAchievements,
+  getConnector,
+} from '../connectors/registry';
 import { ConnectorError, type Credentials } from '../connectors/types';
 import { ACHIEVEMENT_BATCH, STEAM_PRIVACY_URL } from '../connectors/steam';
 import {
@@ -354,7 +358,12 @@ async function resolveMetadata(
 async function collectAchievements(
   platform: Platform,
   credentials: Credentials,
-  games: { externalId: string; minutesPlayed: number | null; lastPlayedAt?: number; achievements?: Achievements }[],
+  games: {
+    externalId: string;
+    minutesPlayed: number | null;
+    lastPlayedAt?: number;
+    achievements?: Achievements;
+  }[],
   signal?: AbortSignal,
 ): Promise<Record<string, Achievements>> {
   const connector = getConnector(platform);

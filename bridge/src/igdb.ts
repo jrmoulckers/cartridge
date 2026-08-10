@@ -79,7 +79,12 @@ async function getToken(env: Env): Promise<string> {
   if (!json.access_token) throw new UpstreamError(502, 'The metadata provider returned no token.');
 
   const ttl = Math.max(60, (json.expires_in ?? 3600) - TOKEN_SAFETY_S);
-  await writeCache(env, TOKEN_KEY, { token: json.access_token, expiresAt: Date.now() + ttl * 1000 }, ttl);
+  await writeCache(
+    env,
+    TOKEN_KEY,
+    { token: json.access_token, expiresAt: Date.now() + ttl * 1000 },
+    ttl,
+  );
   return json.access_token;
 }
 
@@ -182,7 +187,9 @@ interface IgdbGame {
 
 /** IGDB serves covers from a CDN with a size token in the path. */
 const cover = (image: IgdbImage | undefined, size: 'cover_small' | 'cover_big') =>
-  image?.image_id ? `https://images.igdb.com/igdb/image/upload/t_${size}/${image.image_id}.jpg` : undefined;
+  image?.image_id
+    ? `https://images.igdb.com/igdb/image/upload/t_${size}/${image.image_id}.jpg`
+    : undefined;
 
 function normalize(game: IgdbGame): GameMetadata {
   const platforms = new Set<Platform>();
@@ -302,7 +309,8 @@ export async function matchSteamAppids(
   // Remember the misses too — an appid IGDB doesn't know (a delisted demo, a soundtrack)
   // will not start being known tomorrow, and re-asking every sync is pure waste.
   for (const appid of missing) {
-    if (!found.has(appid)) await writeCache(env, steamMatchKey(appid), { game: null }, STEAM_MATCH_TTL_S);
+    if (!found.has(appid))
+      await writeCache(env, steamMatchKey(appid), { game: null }, STEAM_MATCH_TTL_S);
   }
 
   return matches;

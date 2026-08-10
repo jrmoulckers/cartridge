@@ -13,7 +13,12 @@
    * time you played, and that hours-in-a-year is not a number Cartridge can compute at all.
    */
   import { library, libraryLoaded } from '../stores/library';
-  import { availableYears, yearInReview, LAST_PLAYED_IS_LAST, NO_YEARLY_PLAYTIME } from '../stats/year';
+  import {
+    availableYears,
+    yearInReview,
+    LAST_PLAYED_IS_LAST,
+    NO_YEARLY_PLAYTIME,
+  } from '../stats/year';
   import { formatCount, formatHours, formatRating, pluralize } from '../stats/format';
   import { link, navigate } from '../router';
   import Coverage from '../components/Coverage.svelte';
@@ -87,16 +92,16 @@
     <section class="card stack">
       <h2>A quiet year, or a quiet record</h2>
       <p>
-        Cartridge places a game in a year only when something on it is dated — when you started
-        it, when you finished it, or when a platform last saw you play it. That’s a deliberately
-        strict rule: guessing from the day a game was imported would fill this page with
-        confident nonsense.
+        Cartridge places a game in a year only when something on it is dated — when you started it,
+        when you finished it, or when a platform last saw you play it. That’s a deliberately strict
+        rule: guessing from the day a game was imported would fill this page with confident
+        nonsense.
       </p>
       {#if review.undated}
         <p>
           {pluralize(review.undated, 'game')} in your library
-          {review.undated === 1 ? 'carries' : 'carry'} no dates at all. Adding a start or finish
-          date on a game page is all it takes to bring
+          {review.undated === 1 ? 'carries' : 'carry'} no dates at all. Adding a start or finish date
+          on a game page is all it takes to bring
           {review.undated === 1 ? 'it' : 'them'} into a year.
         </p>
       {/if}
@@ -125,9 +130,9 @@
         {#if review.touchedOnly}
           <li>
             <strong>{formatCount(review.touchedOnly)}</strong>
-            {review.touchedOnly === 1 ? 'game is' : 'games are'} here only because a platform last
-            saw you play {review.touchedOnly === 1 ? 'it' : 'them'} in {selected} — no start or
-            finish date of your own.
+            {review.touchedOnly === 1 ? 'game is' : 'games are'} here only because a platform last saw
+            you play {review.touchedOnly === 1 ? 'it' : 'them'} in {selected} — no start or finish date
+            of your own.
           </li>
         {/if}
       </ul>
@@ -160,9 +165,10 @@
     {#if review.genres.buckets.length || review.platforms.length}
       <section class="card stack" aria-labelledby="lean-h">
         <h2 id="lean-h">Where the year leaned</h2>
-        {#if review.genres.buckets.length}
+        {#if review.genres.buckets[0]}
           <p class="statement">
-            Mostly <strong>{review.genres.buckets[0].label}</strong>{#if review.genres.buckets[1]}, then
+            Mostly <strong>{review.genres.buckets[0].label}</strong>{#if review.genres.buckets[1]},
+              then
               {review.genres.buckets[1].label}{/if}.
           </p>
           <BarChart title="Genres of {selected}" distribution={review.genres} limit={8} />
@@ -184,9 +190,9 @@
       <h2 id="time-h">Time</h2>
       {#if review.lifetimeMinutes.value !== null}
         <p class="statement">
-          The games {selected} touched have <strong
-            >{formatHours(review.lifetimeMinutes.value)}</strong
-          > on the clock — across their whole lives, not just this year.
+          The games {selected} touched have
+          <strong>{formatHours(review.lifetimeMinutes.value)}</strong> on the clock — across their whole
+          lives, not just this year.
         </p>
       {:else}
         <p class="statement muted">No platform reports playtime for this year’s games.</p>
@@ -239,12 +245,11 @@
      artifact rather than a screen. The tint is mixed from the primary token, never a new
      colour, and every value it uses is a token. */
   .hero {
-    background:
-      linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--primary) 22%, var(--surface)),
-        var(--surface) 70%
-      );
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--primary) 22%, var(--surface)),
+      var(--surface) 70%
+    );
     border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
     display: flex;
     flex-direction: column;

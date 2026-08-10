@@ -1,0 +1,8 @@
+# Prettier is configured with `endOfLine: lf`, so the working tree must be LF on every
+# platform or `prettier --check` fails on Windows checkouts.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.woff2 binary

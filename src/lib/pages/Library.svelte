@@ -42,7 +42,11 @@
   }
 
   function selectShelf(shelfId: string) {
-    filter = { ...filter, status: 'all', shelfId: filter.shelfId === shelfId ? undefined : shelfId };
+    filter = {
+      ...filter,
+      status: 'all',
+      shelfId: filter.shelfId === shelfId ? undefined : shelfId,
+    };
   }
 
   function changeSort(next: SortKey) {
@@ -63,10 +67,9 @@
     <div>
       <h2>Your library starts empty — and that’s all it needs</h2>
       <p class="muted">
-        Cartridge works completely offline with no accounts connected. Add a game by hand and
-        you can shelve it, rate it, review it and search it straight away. Connecting Steam,
-        Xbox, PlayStation or Nintendo later only fills in the details you didn’t feel like
-        typing.
+        Cartridge works completely offline with no accounts connected. Add a game by hand and you
+        can shelve it, rate it, review it and search it straight away. Connecting Steam, Xbox,
+        PlayStation or Nintendo later only fills in the details you didn’t feel like typing.
       </p>
     </div>
     <div class="row wrap">

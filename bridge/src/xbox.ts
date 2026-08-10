@@ -154,7 +154,9 @@ export async function getAccount(key: string): Promise<XboxAccount> {
 
   const settings = new Map(
     (Array.isArray(profile.settings) ? profile.settings : [])
-      .filter((s): s is Required<RawSetting> => typeof s?.id === 'string' && typeof s.value === 'string')
+      .filter(
+        (s): s is Required<RawSetting> => typeof s?.id === 'string' && typeof s.value === 'string',
+      )
       .map((s) => [s.id, s.value] as const),
   );
 
@@ -207,8 +209,7 @@ function parseAchievements(raw: RawTitle['achievement']): { earned: number; tota
 }
 
 function normalizeTitle(raw: RawTitle): XboxGame | null {
-  const titleId =
-    typeof raw?.titleId === 'number' ? String(raw.titleId) : raw?.titleId;
+  const titleId = typeof raw?.titleId === 'number' ? String(raw.titleId) : raw?.titleId;
   if (!isTitleId(titleId)) return null;
 
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';

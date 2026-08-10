@@ -52,9 +52,7 @@ export function loginUrl(returnTo: string, realm: string): string {
   return `${OPENID_ENDPOINT}?${params}`;
 }
 
-export type VerifyResult =
-  | { ok: true; steamId: string }
-  | { ok: false; reason: string };
+export type VerifyResult = { ok: true; steamId: string } | { ok: false; reason: string };
 
 /**
  * Verify an OpenID assertion **with Steam**, not by reading it.

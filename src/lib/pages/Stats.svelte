@@ -16,7 +16,13 @@
   import { triageBacklog, BACKLOG_SORT_LABELS, NO_LENGTH_ESTIMATE } from '../stats/backlog';
   import type { BacklogSort } from '../stats/backlog';
   import { countUndated } from '../stats/year';
-  import { formatCount, formatHours, formatPercent, formatRating, pluralize } from '../stats/format';
+  import {
+    formatCount,
+    formatHours,
+    formatPercent,
+    formatRating,
+    pluralize,
+  } from '../stats/format';
   import { measure } from '../stats/types';
   import { PLATFORM_LABELS } from '../types';
   import type { Platform } from '../types';
@@ -61,8 +67,8 @@
   <section class="card stack">
     <h2>Nothing to count yet</h2>
     <p class="muted">
-      Stats are built entirely from your own library, on your own device. Add a game and this
-      page starts filling in — no account, no sync, nothing to switch on.
+      Stats are built entirely from your own library, on your own device. Add a game and this page
+      starts filling in — no account, no sync, nothing to switch on.
     </p>
     <div class="row wrap">
       <a class="btn primary" href="/add" use:link>Add a game</a>
@@ -123,8 +129,8 @@
       />
     </div>
     <p class="muted note">
-      An abandoned game is a legitimate outcome, not a failure state — it sits here as plainly
-      as a finished one.
+      An abandoned game is a legitimate outcome, not a failure state — it sits here as plainly as a
+      finished one.
     </p>
   </section>
 
@@ -154,10 +160,10 @@
     </div>
     <p class="muted note">
       Playtime you don’t have isn’t zero. {pluralize(stats.playtime.unreported, 'game')} here
-      {stats.playtime.unreported === 1 ? 'reports' : 'report'} no playtime at all — PlayStation
-      reports none by design, and Xbox only reports it for some titles — so
-      {stats.playtime.unreported === 1 ? 'it is' : 'they are'} left out of these totals rather than
-      counted as nothing.
+      {stats.playtime.unreported === 1 ? 'reports' : 'report'} no playtime at all — PlayStation reports
+      none by design, and Xbox only reports it for some titles — so
+      {stats.playtime.unreported === 1 ? 'it is' : 'they are'} left out of these totals rather than counted
+      as nothing.
     </p>
   </section>
 
@@ -264,14 +270,13 @@
         One game can sit on more than one platform, so these add up to more than your library.
         {#if stats.unlinked}
           {pluralize(stats.unlinked, 'game')}
-          {stats.unlinked === 1 ? 'is' : 'are'} in no row at all — added by hand, owned nowhere in
-          particular.
+          {stats.unlinked === 1 ? 'is' : 'are'} in no row at all — added by hand, owned nowhere in particular.
         {/if}
       </p>
     {:else}
       <p class="muted note">
-        Nothing here is linked to a platform yet. Connect Steam or Xbox in Settings, or keep
-        adding games by hand — the rest of this page works either way.
+        Nothing here is linked to a platform yet. Connect Steam or Xbox in Settings, or keep adding
+        games by hand — the rest of this page works either way.
       </p>
     {/if}
   </section>
@@ -282,7 +287,8 @@
       {#if stats.extremes.mostPlayed}
         <li>
           <span class="overline">Most played</span>
-          <a href="/game/{stats.extremes.mostPlayed.id}" use:link>{stats.extremes.mostPlayed.title}</a
+          <a href="/game/{stats.extremes.mostPlayed.id}" use:link
+            >{stats.extremes.mostPlayed.title}</a
           >
           <span class="muted">{formatHours(stats.extremes.mostPlayed.amount)}</span>
         </li>
@@ -290,7 +296,8 @@
       {#if stats.extremes.bestRated}
         <li>
           <span class="overline">Highest rated</span>
-          <a href="/game/{stats.extremes.bestRated.id}" use:link>{stats.extremes.bestRated.title}</a>
+          <a href="/game/{stats.extremes.bestRated.id}" use:link>{stats.extremes.bestRated.title}</a
+          >
           <span class="muted">{formatRating(stats.extremes.bestRated.amount)} ★</span>
         </li>
       {/if}
@@ -321,7 +328,8 @@
           <a href="/game/{stats.extremes.longestInBacklog.id}" use:link
             >{stats.extremes.longestInBacklog.title}</a
           >
-          <span class="muted">in your library since {formatDate(stats.extremes.longestInBacklog.amount)}</span
+          <span class="muted"
+            >in your library since {formatDate(stats.extremes.longestInBacklog.amount)}</span
           >
         </li>
       {/if}
@@ -380,23 +388,27 @@
     <h2 id="honesty-h">What this page can’t tell you</h2>
     <ul class="plain">
       <li>
-        <strong>When you played.</strong> Platforms report total playtime and a last-played date,
-        never a history. So Cartridge can say how long you’ve spent with a game, but never how much
-        of that was this year.
+        <strong>When you played.</strong> Platforms report total playtime and a last-played date, never
+        a history. So Cartridge can say how long you’ve spent with a game, but never how much of that
+        was this year.
       </li>
       <li>
-        <strong>How long a game takes.</strong> There’s no HowLongToBeat data here and IGDB doesn’t
-        carry reliable completion times, so nothing is estimated.
+        <strong>How long a game takes.</strong> There’s no HowLongToBeat data here and IGDB doesn’t carry
+        reliable completion times, so nothing is estimated.
       </li>
       <li>
-        <strong>Whether a game surprised you.</strong> Cartridge never asked what you expected, so
-        it isn’t going to invent an answer.
+        <strong>Whether a game surprised you.</strong> Cartridge never asked what you expected, so it
+        isn’t going to invent an answer.
       </li>
       {#if undated}
         <li>
-          <strong>Which year {undated === 1 ? 'one game belongs' : `${formatCount(undated)} games belong`} to.</strong>
-          {undated === 1 ? 'It carries' : 'They carry'} no start, finish or last-played date. Adding
-          dates on a game page fixes that.
+          <strong
+            >Which year {undated === 1
+              ? 'one game belongs'
+              : `${formatCount(undated)} games belong`} to.</strong
+          >
+          {undated === 1 ? 'It carries' : 'They carry'} no start, finish or last-played date. Adding dates
+          on a game page fixes that.
         </li>
       {/if}
     </ul>

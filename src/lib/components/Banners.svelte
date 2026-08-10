@@ -16,9 +16,8 @@
     <div class="grow">
       <strong>{$storageError}</strong>
       <p class="muted">
-        Recent changes may not have been saved. This usually means private browsing, a full
-        disk, or another tab upgrading the database — try closing other Cartridge tabs and
-        reloading.
+        Recent changes may not have been saved. This usually means private browsing, a full disk, or
+        another tab upgrading the database — try closing other Cartridge tabs and reloading.
       </p>
     </div>
     <button type="button" class="btn small" onclick={clearStorageError}>Dismiss</button>

@@ -169,10 +169,7 @@ export interface TitleMatches {
  * Batched in chunks the bridge will accept, and sequential, because each uncached title costs
  * an IGDB search.
  */
-export async function matchTitles(
-  titles: string[],
-  signal?: AbortSignal,
-): Promise<TitleMatches> {
+export async function matchTitles(titles: string[], signal?: AbortSignal): Promise<TitleMatches> {
   const unique = [...new Set(titles.map((t) => t.trim()).filter(Boolean))];
   const matches: Record<string, GameMetadata> = {};
   let complete = true;

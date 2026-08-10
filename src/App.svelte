@@ -31,7 +31,12 @@
     { href: '/shelves', label: 'Shelves', icon: '🗂', match: (n: string) => n === 'shelves' },
     // Stats and the year in review are one destination in the nav: the year is the artifact
     // you arrive at from the everyday page, not a fifth thing to keep in your head.
-    { href: '/stats', label: 'Stats', icon: '📊', match: (n: string) => n === 'stats' || n === 'year' },
+    {
+      href: '/stats',
+      label: 'Stats',
+      icon: '📊',
+      match: (n: string) => n === 'stats' || n === 'year',
+    },
     { href: '/settings', label: 'Settings', icon: '⚙', match: (n: string) => n === 'settings' },
   ];
 </script>
@@ -71,7 +76,7 @@
         <Library />
       {:else if route.name === 'add'}
         <AddGame />
-      {:else if route.name === 'game'}
+      {:else if route.name === 'game' && route.params.id}
         <GameDetail id={route.params.id} bind:title={subject} />
       {:else if route.name === 'shelves'}
         <Shelves />
