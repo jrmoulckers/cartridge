@@ -6,14 +6,14 @@ obligation IDs they satisfy rather than restating them.
 
 ## What it is
 
-**Goodreads for video games.** Cartridge tracks the games you're playing, have played, and want
-to play, and lets you rate and review them the way you would a book. It can pull your library in
-from Steam, Xbox, PlayStation and Nintendo — but it does not need to.
+**Goodreads for video games.** Cartridge tracks the games you're playing, have played, and
+want to play, and lets you rate and review them the way you would a book. It can pull your
+library in from Steam, Xbox, PlayStation and Nintendo — but it does not need to.
 
 ## Who it's for
 
-Someone with a games library scattered across four storefronts and twenty years, who wants one
-place that answers:
+Someone with a games library scattered across four storefronts and twenty years, who wants
+one place that answers:
 
 - _What am I in the middle of?_
 - _What did I think of that game I finished in 2019?_
@@ -26,9 +26,9 @@ adoption or novelty, for the three sections above._
 
 **Your library is yours, it lives on your device, and it works with nothing connected.**
 
-Every feature that matters — adding a game, shelving it, rating it, reviewing it, searching it,
-backing it up — works with no accounts, no bridge and no network. Connectors and metadata lookup
-are conveniences layered on top of a complete app, never load-bearing.
+Every feature that matters — adding a game, shelving it, rating it, reviewing it, searching
+it, backing it up — works with no accounts, no bridge and no network. Connectors and
+metadata lookup are conveniences layered on top of a complete app, never load-bearing.
 
 ## Core concepts
 
@@ -42,9 +42,9 @@ are conveniences layered on top of a complete app, never load-bearing.
 
 ### One entry, many platforms
 
-Owning a game on Steam _and_ Xbox gives you **one** entry with two platform links and merged
-stats — not two rows to rate separately. Your opinion of a game is about the game, not the
-storefront. As of phase 4 this is a tested property rather than an intention: see
+Owning a game on Steam _and_ Xbox gives you **one** entry with two platform links and
+merged stats — not two rows to rate separately. Your opinion of a game is about the game,
+not the storefront. As of phase 4 this is a tested property rather than an intention: see
 `src/lib/connectors/cross-platform.test.ts`.
 
 ### Playtime you don't have is not zero
@@ -52,33 +52,34 @@ storefront. As of phase 4 this is a tested property rather than an intention: se
 _Satisfies `PROD-MET-003` — unknown and none are different facts, and a number may not claim
 more than the data supports._
 
-PlayStation does not report playtime. Cartridge stores that as `null` and renders it as "Not
-reported". Writing `0h` would be a small lie that quietly poisons every statistic built on top
-of it.
+PlayStation does not report playtime. Cartridge stores that as `null` and renders it as
+"Not reported". Writing `0h` would be a small lie that quietly poisons every statistic
+built on top of it.
 
-Steam is the other half of the same rule: a game you own and have never launched is a real `0`,
-and it is shown as `0`. Unknown and none are different facts and Cartridge never conflates them.
+Steam is the other half of the same rule: a game you own and have never launched is a real
+`0`, and it is shown as `0`. Unknown and none are different facts and Cartridge never
+conflates them.
 
 ### Connecting a platform is a proposal, not an event
 
 A Steam library can be eleven hundred games. Sync reads it, works out what would change, and
-**shows you before writing anything**: what's new, what you already own and will simply gain a
-Steam link, what couldn't be identified. You choose the shelf new games land on — Backlog by
-default, because an unplayed library is a backlog.
+**shows you before writing anything**: what's new, what you already own and will simply gain
+a Steam link, what couldn't be identified. You choose the shelf new games land on — Backlog
+by default, because an unplayed library is a backlog.
 
-Running it again changes nothing. Playtime, last-played and achievements are refreshed; ratings,
-reviews, notes, statuses, dates and shelves are yours and are never written by a sync.
-Disconnecting removes the account and the platform's numbers, and leaves everything you wrote
-exactly where it was.
+Running it again changes nothing. Playtime, last-played and achievements are refreshed;
+ratings, reviews, notes, statuses, dates and shelves are yours and are never written by a
+sync. Disconnecting removes the account and the platform's numbers, and leaves everything you
+wrote exactly where it was.
 
 ## Ratings
 
 - **Five stars, half steps.** The familiar Goodreads scale, and the one most people can use
   consistently.
-- **An optional score out of 100** for people who want more resolution, stored separately so the
-  two never fight.
-- **Unrated is a real state.** Not zero stars, not one — no rating at all, and easy to get back
-  to.
+- **An optional score out of 100** for people who want more resolution, stored separately
+  so the two never fight.
+- **Unrated is a real state.** Not zero stars, not one — no rating at all, and easy to get
+  back to.
 
 ## Reviews and notes
 
@@ -87,8 +88,9 @@ Both are Markdown, and both are yours:
 - A **review** is what you thought of the game.
 - **Notes** are private working notes — where you left off, what to try next.
 
-Markdown is rendered by a small in-repo renderer that escapes everything first and only emits
-markup it generates itself. No HTML passthrough, no third-party sanitizer to keep patched.
+Markdown is rendered by a small in-repo renderer that escapes everything first and only
+emits markup it generates itself. No HTML passthrough, no third-party sanitizer to keep
+patched.
 
 ## Anti-references
 
@@ -105,27 +107,27 @@ Cartridge is deliberately **not**:
 
 ## Stats, and what a number is allowed to claim
 
-_Satisfies `PROD-MET-001` (one owned definition per metric, stating its population, window and
-exclusions) and `PROD-MET-003` (report coverage, limitations and what the number cannot claim) —
-for this section and the two that follow._
+_Satisfies `PROD-MET-001` (one owned definition per metric, stating its population, window
+and exclusions) and `PROD-MET-003` (report coverage, limitations and what the number cannot
+claim) — for this section and the two that follow._
 
-Cartridge's data is structurally incomplete by design, so the stats screens are built around one
-rule: **every number carries the share of the library it could actually see.** "412 hours" is
-false the moment half your library reports nothing; "412 hours across 38 of your 91 games" is
-true, and more interesting. A figure that can't be computed honestly says why instead of showing
-a zero.
+Cartridge's data is structurally incomplete by design, so the stats screens are built around
+one rule: **every number carries the share of the library it could actually see.** "412 hours"
+is false the moment half your library reports nothing; "412 hours across 38 of your 91 games"
+is true, and more interesting. A figure that can't be computed honestly says why instead of
+showing a zero.
 
 ### What counts as "this year"
 
 A game belongs to a year when it carries a dated fact in it, in your own time zone: a finish
-date, a start date, a replay date, or the last-played date a platform reports. Everything that
-follows from that is stated on the page rather than hidden:
+date, a start date, a replay date, or the last-played date a platform reports. Everything
+that follows from that is stated on the page rather than hidden:
 
-- **A game with no dates belongs to no year.** It is counted and named, never quietly dropped —
-  and never back-filled from the day it was imported, which is a fact about an import rather
-  than about playing a game.
-- **Last-played is _last_, not _every_.** Play something again next year and it moves with you,
-  leaving the year before.
+- **A game with no dates belongs to no year.** It is counted and named, never quietly
+  dropped — and never back-filled from the day it was imported, which is a fact about an
+  import rather than about playing a game.
+- **Last-played is _last_, not _every_.** Play something again next year and it moves with
+  you, leaving the year before.
 - **Hours played _in_ a year cannot be computed, so they are never claimed.** Steam and Xbox
   report how long you have played a game in total, never when. The year page reports the
   lifetime playtime behind the games your year touched, labelled exactly that.
@@ -144,15 +146,15 @@ follows from that is stated on the page rather than hidden:
   anti-references above.
 
 Backlog triage keeps the `0` / `null` distinction in the foreground: **never launched** is a
-platform reporting a real zero, **nobody knows** is no platform reporting at all, and mixing the
-two into one "unplayed" pile would throw away the only thing that makes the screen more useful
-than the shelf it summarises.
+platform reporting a real zero, **nobody knows** is no platform reporting at all, and mixing
+the two into one "unplayed" pile would throw away the only thing that makes the screen more
+useful than the shelf it summarises.
 
 ## Scope by phase
 
-_Satisfies `PROD-STRAT-003` (milestones are coherent outcomes that stay valuable without any one
-platform or vendor) and `PROD-PLAN-001` (each phase is an independently shippable slice — phase
-7 shipped ahead of 5 and 6 precisely because it did not depend on them)._
+_Satisfies `PROD-STRAT-003` (milestones are coherent outcomes that stay valuable without any
+one platform or vendor) and `PROD-PLAN-001` (each phase is an independently shippable slice —
+phase 7 shipped ahead of 5 and 6 precisely because it did not depend on them)._
 
 | Phase                 | What lands                                                                                                                                                                                                |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

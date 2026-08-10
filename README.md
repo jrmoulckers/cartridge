@@ -1,12 +1,12 @@
 # Cartridge
 
-Track the games you're playing, have played, and want to play — across Steam, Xbox, PlayStation
-and Nintendo. Rate them, review them, shelve them. Goodreads for video games.
+Track the games you're playing, have played, and want to play — across Steam, Xbox,
+PlayStation and Nintendo. Rate them, review them, shelve them. Goodreads for video games.
 
-**It works completely offline with no accounts connected.** That's the point, not a fallback:
-shelves, ratings, Markdown reviews, notes, dates, search and backups all run on your device with
-nothing plugged in. Platform connectors and metadata lookup are conveniences on top of an app
-that is already complete without them.
+**It works completely offline with no accounts connected.** That's the point, not a
+fallback: shelves, ratings, Markdown reviews, notes, dates, search and backups all run on
+your device with nothing plugged in. Platform connectors and metadata lookup are
+conveniences on top of an app that is already complete without them.
 
 ## Status
 
@@ -42,8 +42,9 @@ That's it. No configuration, no keys, no account. Add a game and start using it.
 ## Optional: metadata
 
 To get cover art, genres and release dates filled in for you, deploy the bridge — a small
-Cloudflare Worker that talks to IGDB — and paste its URL into **Settings → Metadata bridge**.
-See [`bridge/README.md`](bridge/README.md) for the two secrets you need and how to get them.
+Cloudflare Worker that talks to IGDB — and paste its URL into **Settings → Metadata
+bridge**. See [`bridge/README.md`](bridge/README.md) for the two secrets you need and how
+to get them.
 
 Without it, you type the details in yourself and everything else is identical.
 
@@ -61,10 +62,10 @@ Without it, you type the details in yourself and everything else is identical.
 ## Product authority
 
 Product obligations and outcomes are defined in
-[jrmoulckers/product](https://github.com/jrmoulckers/product) and consumed by reference — cite
-obligations by stable ID (for example `PROD-REL-001`), pinning to a commit SHA when the exact
-wording matters. Roadmaps, metrics, experiments and compliance evidence stay here and cite the
-obligation they satisfy; [PRODUCT.md](PRODUCT.md) is Cartridge's instance.
+[jrmoulckers/product](https://github.com/jrmoulckers/product) and consumed by reference —
+cite obligations by stable ID (for example `PROD-REL-001`), pinning to a commit SHA when the
+exact wording matters. Roadmaps, metrics, experiments and compliance evidence stay here and
+cite the obligation they satisfy; [PRODUCT.md](PRODUCT.md) is Cartridge's instance.
 
 Engineering mechanisms are defined in
 [jrmoulckers/engineering](https://github.com/jrmoulckers/engineering), design and interface in
@@ -73,15 +74,15 @@ assets in [jrmoulckers/.github](https://github.com/jrmoulckers/.github).
 
 ## Your data
 
-Your library lives in IndexedDB in your browser. There is no Cartridge account and no Cartridge
-server — nothing to sign up for and nothing to leak.
+Your library lives in IndexedDB in your browser. There is no Cartridge account and no
+Cartridge server — nothing to sign up for and nothing to leak.
 
-**Take a backup.** _Settings → Your data → Save a backup_ writes one JSON file, covers included,
-that you own. Restoring it replaces the library on that device (and downloads a copy of what was
-there first, just in case).
+**Take a backup.** _Settings → Your data → Save a backup_ writes one JSON file, covers
+included, that you own. Restoring it replaces the library on that device (and downloads a
+copy of what was there first, just in case).
 
 ## Built with
 
-Svelte 5 · Vite · TypeScript · `idb` · `vite-plugin-pwa` · Vitest · Cloudflare Workers + KV.
-Design tokens from [`@jrm/tokens`](vendor/README.md). A sibling to
+Svelte 5 · Vite · TypeScript · `idb` · `vite-plugin-pwa` · Vitest · Cloudflare Workers +
+KV. Design tokens from [`@jrm/tokens`](vendor/README.md). A sibling to
 [score-king](https://github.com/jrmoulckers/score-king).

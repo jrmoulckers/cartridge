@@ -1,8 +1,6 @@
 ---
 name: Cartridge
-description:
-  A local-first PWA that tracks the games you're playing, have played, and want to play —
-  Goodreads for video games.
+description: A local-first PWA that tracks the games you're playing, have played, and want to play — Goodreads for video games.
 colors:
   primary: '#7c5cff'
   primary-strong: '#6b46f0'
@@ -127,15 +125,15 @@ components:
 
 **Creative North Star: "The Shelf"**
 
-Cartridge is a bookshelf for games. A shelf is quiet, personal and slightly proud: the spines
-face out, the order means something to the person who arranged it, and nothing on it is trying
-to sell you anything. The app is the same. Covers do the talking; the chrome gets out of the
-way; the only decoration is the one gold star you awarded yourself.
+Cartridge is a bookshelf for games. A shelf is quiet, personal and slightly proud: the
+spines face out, the order means something to the person who arranged it, and nothing on it
+is trying to sell you anything. The app is the same. Covers do the talking; the chrome gets
+out of the way; the only decoration is the one gold star you awarded yourself.
 
 Every value in this system comes from **`@jrm/tokens`**, the shared JRM Studio design token
-distribution vendored at `vendor/@jrm/tokens`. Cartridge invents no colour, no spacing step, no
-radius and no duration. `src/app.css` imports the token CSS and defines only short local aliases
-(`--bg`, `--surface`, `--primary`, …) so that a token rename is a one-file change.
+distribution vendored at `vendor/@jrm/tokens`. Cartridge invents no colour, no spacing step,
+no radius and no duration. `src/app.css` imports the token CSS and defines only short local
+aliases (`--bg`, `--surface`, `--primary`, …) so that a token rename is a one-file change.
 
 **Key characteristics**
 
@@ -144,15 +142,15 @@ radius and no duration. `src/app.css` imports the token CSS and defines only sho
   four are token themes keyed off `[data-theme]` on `<html>`.
 - **Royal Violet for the one action that matters; Crown Gold only for stars and favourites.**
   Scarcity is what makes an accent mean something.
-- **≥46px touch targets**, thumb-zone-first: app bar and bottom tab bar on phones, a solid left
-  rail from 900px.
+- **≥46px touch targets**, thumb-zone-first: app bar and bottom tab bar on phones, a solid
+  left rail from 900px.
 - **Empty states that reassure**, never nag. "Your library starts empty — and that's all it
   needs."
 
 ## 2. Colours
 
-The palette is the studio palette: saturated Royal Violet and Crown Gold against deep indigo
-neutrals, with a tight semantic set for good/bad/caution/info.
+The palette is the studio palette: saturated Royal Violet and Crown Gold against deep
+indigo neutrals, with a tight semantic set for good/bad/caution/info.
 
 | Role                 | Token                             | Dark                 | Light     |
 | -------------------- | --------------------------------- | -------------------- | --------- |
@@ -171,14 +169,14 @@ Two rules:
 
 - **The Crown Gold rule.** Gold appears on exactly two things: a star you filled in, and a
   favourite. It never becomes a general highlight colour.
-- **Gold text darkens on light surfaces.** Pure `#ffd166` fails WCAG on white, so `accent-ink`
-  is `#806600` in the light theme while fills stay gold. Use `--accent` for fills and
-  `--accent-ink` for text.
+- **Gold text darkens on light surfaces.** Pure `#ffd166` fails WCAG on white, so
+  `accent-ink` is `#806600` in the light theme while fills stay gold. Use `--accent` for
+  fills and `--accent-ink` for text.
 
 ## 3. Typography
 
-One native sans for everything (the studio Quiet-Type Rule) — no webfont to download, no layout
-shift, and it looks native on every platform.
+One native sans for everything (the studio Quiet-Type Rule) — no webfont to download, no
+layout shift, and it looks native on every platform.
 
 | Style    | Size    | Weight                  | Used for                                         |
 | -------- | ------- | ----------------------- | ------------------------------------------------ |
@@ -195,13 +193,13 @@ Numbers that sit in columns — ratings, counts, playtime — use
 
 - **Radii**: `9px` controls, `14px` containers, `10px` chips, `999px` pills.
 - **Spacing**: `6 / 10 / 14 / 16 / 20px`. Nothing between.
-- **Shell**: sticky app bar + fixed bottom tab bar under 900px; both collapse into a 232px left
-  rail above it. `env(safe-area-inset-*)` everywhere so notches and home indicators never clip a
-  control.
-- **Covers are 3:4**, always. A missing cover is not a broken image — it is a designed tile with
-  the game's initials, because a hand-added game is a first-class citizen.
-- **Grid**: `repeat(auto-fill, minmax(132px, 1fr))`. Titles clamp to two lines so one long name
-  can't shove the grid around.
+- **Shell**: sticky app bar + fixed bottom tab bar under 900px; both collapse into a 232px
+  left rail above it. `env(safe-area-inset-*)` everywhere so notches and home indicators
+  never clip a control.
+- **Covers are 3:4**, always. A missing cover is not a broken image — it is a designed tile
+  with the game's initials, because a hand-added game is a first-class citizen.
+- **Grid**: `repeat(auto-fill, minmax(132px, 1fr))`. Titles clamp to two lines so one long
+  name can't shove the grid around.
 
 ## 5. Motion
 
@@ -213,8 +211,8 @@ Fast and functional; nothing you wait for.
 | `--duration-tile`  | 120ms    | Tile hover lift, star fill     |
 | `--duration-state` | 150ms    | Hover and state colour changes |
 
-The star fill animates `clip-path`, not `width` — composited, and it doesn't distort the glyph.
-Every transition is disabled under `prefers-reduced-motion: reduce`.
+The star fill animates `clip-path`, not `width` — composited, and it doesn't distort the
+glyph. Every transition is disabled under `prefers-reduced-motion: reduce`.
 
 ## 6. Accessibility
 
@@ -228,8 +226,8 @@ Non-negotiable, not a pass at the end.
 - **Touch targets ≥46px**; `touch-action: manipulation` kills the 300ms tap delay.
 - **Live regions** for result counts, save confirmations and toasts; errors use `role="alert"`
   and assertive politeness, everything else is polite.
-- **Page titles change per route** (WCAG 2.4.2), and `document.title` names the game on a game
-  page.
+- **Page titles change per route** (WCAG 2.4.2), and `document.title` names the game on a
+  game page.
 - **A high-contrast theme** and honouring of `prefers-contrast`, `prefers-color-scheme` and
   `prefers-reduced-motion` come from the token distribution, not from bespoke CSS.
 - **Colour is never the only signal**: shelf pills carry text, degraded connectors carry a
