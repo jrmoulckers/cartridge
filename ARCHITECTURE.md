@@ -205,7 +205,10 @@ See `bridge/README.md` for the secrets and how to obtain them.
 
 Connectors are Cartridge's instance of
 [`ENG-LOCAL-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md):
-one narrow provider contract that core local operation never waits on.
+one narrow provider contract that core local operation never waits on. Each implementation is
+the thin single-purpose adapter
+[`ENG-INT-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+asks for — provider quirks are parsed into Cartridge's own types at the edge and go no further.
 
 A connector answers four questions about a platform — who you are, what you own, what you've
 played lately, and how far through the achievements you are — and nothing else. The registry
