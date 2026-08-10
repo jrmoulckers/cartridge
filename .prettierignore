@@ -5,6 +5,11 @@ coverage
 package-lock.json
 bridge/package-lock.json
 
+# Prettier can infer no parser for .npmrc. `prettier --check .` skips it, but the glob
+# forms (`--check "**"`) hard-error on it, so pin the behaviour rather than depend on
+# how the format script happens to be spelled.
+.npmrc
+
 # Vendored upstream artifacts — never hand-edited, never reformatted.
 vendor
 .impeccable
