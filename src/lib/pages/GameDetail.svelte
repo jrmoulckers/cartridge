@@ -38,6 +38,7 @@
     clampScore,
   } from '../util';
   import { renderMarkdown } from '../markdown';
+  import { settings } from '../stores/settings';
   import Stars from '../components/Stars.svelte';
   import StarRating from '../components/StarRating.svelte';
   import MarkdownEditor from '../components/MarkdownEditor.svelte';
@@ -321,52 +322,68 @@
       </div>
     </section>
 
-    <section class="card stack" aria-labelledby="platforms-h">
-      <h2 id="platforms-h">Platforms</h2>
-      <p class="muted hint">
-        Link this game to the id a platform uses for it. Connectors will fill these in automatically
-        later; until then you can set them by hand.
-      </p>
+    {#if $settings.advanced || item.links.length || item.stats.length}
+      <!--
+        Manual platform ids are a power-user tool: they exist so a connector can recognise a
+        game you already added. Someone tracking games by hand has no use for them, so the
+        editor only appears once they've opted into connections — but anything already linked
+        stays visible either way, so nothing ever silently disappears.
+      -->
+      <section class="card stack" aria-labelledby="platforms-h">
+        <h2 id="platforms-h">Platform links <span class="pill">Optional</span></h2>
+        <p class="muted hint">
+          A link tells Cartridge that this game is the same game as one in a connected Steam or
+          Xbox account, so playtime lands on the right shelf entry. Nothing here affects your
+          rating, review or notes.
+        </p>
 
-      {#each item.links as l (l.id)}
-        <div class="row spread">
-          <span>{PLATFORM_LABELS[l.platform]} · <code>{l.externalId}</code></span>
-          <button type="button" class="btn small ghost" onclick={() => removeLink(l.id)}>
-            Unlink
-          </button>
-        </div>
-      {/each}
+        {#each item.links as l (l.id)}
+          <div class="row spread">
+            <span>{PLATFORM_LABELS[l.platform]} · <code>{l.externalId}</code></span>
+            <button type="button" class="btn small ghost" onclick={() => removeLink(l.id)}>
+              Unlink
+            </button>
+          </div>
+        {/each}
 
-      <div class="row wrap">
-        <div>
-          <label for="link-platform">Platform</label>
-          <select id="link-platform" bind:value={newLinkPlatform}>
-            {#each PLATFORMS as p (p)}<option value={p}>{PLATFORM_LABELS[p]}</option>{/each}
-          </select>
-        </div>
-        <div class="grow">
-          <label for="link-id">Platform id</label>
-          <input id="link-id" type="text" bind:value={newLinkId} placeholder="e.g. 753640" />
-        </div>
-        <button type="button" class="btn small" onclick={saveLink} disabled={!newLinkId.trim()}>
-          Link
-        </button>
-      </div>
+        {#if $settings.advanced}
+          <div class="row wrap">
+            <div>
+              <label for="link-platform">Platform</label>
+              <select id="link-platform" bind:value={newLinkPlatform}>
+                {#each PLATFORMS as p (p)}<option value={p}>{PLATFORM_LABELS[p]}</option>{/each}
+              </select>
+            </div>
+            <div class="grow">
+              <label for="link-id">Platform id</label>
+              <input id="link-id" type="text" bind:value={newLinkId} placeholder="e.g. 753640" />
+            </div>
+            <button
+              type="button"
+              class="btn small"
+              onclick={saveLink}
+              disabled={!newLinkId.trim()}
+            >
+              Link
+            </button>
+          </div>
+        {/if}
 
-      {#if item.stats.length}
-        <ul class="stats">
-          {#each item.stats as stat (stat.id)}
-            <li>
-              {PLATFORM_LABELS[stat.platform]} · {formatPlaytime(stat.minutesPlayed)}
-              {#if stat.lastPlayedAt}· last played {formatDate(stat.lastPlayedAt)}{/if}
-              {#if stat.achievements}
-                · {stat.achievements.earned}/{stat.achievements.total} achievements
-              {/if}
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </section>
+        {#if item.stats.length}
+          <ul class="stats">
+            {#each item.stats as stat (stat.id)}
+              <li>
+                {PLATFORM_LABELS[stat.platform]} · {formatPlaytime(stat.minutesPlayed)}
+                {#if stat.lastPlayedAt}· last played {formatDate(stat.lastPlayedAt)}{/if}
+                {#if stat.achievements}
+                  · {stat.achievements.earned}/{stat.achievements.total} achievements
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+    {/if}
 
     {#if item.game.summary}
       <section class="card" aria-labelledby="about-h">

@@ -6,7 +6,14 @@
    * Backup and restore live here because they are the only durable answer to "what happens
    * to my library if this device dies" in a local-first app — and both work offline.
    */
-  import { settings, setTheme, setView, setBridgeUrl, type Theme } from '../stores/settings';
+  import {
+    settings,
+    setTheme,
+    setView,
+    setBridgeUrl,
+    setAdvanced,
+    type Theme,
+  } from '../stores/settings';
   import { library, refreshLibrary } from '../stores/library';
   import { refreshShelves } from '../stores/shelves';
   import { showToast } from '../stores/toast';
@@ -52,6 +59,9 @@
   let busy = $state(false);
   let bridgeDraft = $state($settings.bridgeUrl);
   let checking = $state(false);
+  const bridgeReady = $derived(
+    $bridgeHealth === 'reachable' || $bridgeHealth === 'slow',
+  );
 
   async function exportNow() {
     busy = true;
@@ -126,6 +136,15 @@
     checking = false;
   }
 
+  async function toggleAdvanced(advanced: boolean) {
+    setAdvanced(advanced);
+    if (advanced && $bridgeUrl) {
+      checking = true;
+      await checkBridge();
+      checking = false;
+    }
+  }
+
   // ── Platforms ─────────────────────────────────────────────────────────────
 
   let confirmingDisconnect = $state(false);
@@ -198,7 +217,7 @@
     void (async () => {
       // Settings is the status surface, so refresh its evidence when it is actually opened.
       // This does not run during ordinary app boot and an unconfigured device stays network-free.
-      if ($bridgeUrl) {
+      if ($settings.advanced && $bridgeUrl) {
         checking = true;
         void checkBridge().finally(() => {
           checking = false;
@@ -327,51 +346,75 @@
   {/if}
 </section>
 
-<section class="card stack" aria-labelledby="bridge-h">
-  <h2 id="bridge-h">Metadata bridge <span class="pill">Optional</span></h2>
+<section class="card stack" aria-labelledby="connect-h">
+  <h2 id="connect-h">Connecting accounts <span class="pill">Optional</span></h2>
   <p class="muted">
-    The bridge is a small worker that looks up cover art and release details so you don't have to
-    type them. It never sees your library, your ratings or your reviews — only the words you type
-    into a search box. Leave it blank and Cartridge works exactly as it does now, just with more
-    typing.
+    Cartridge is a shelf, not an account. You add a game, put it on a shelf, rate it and write
+    about it — all of that works on this device with nothing signed in and no connection.
+  </p>
+  <p class="muted">
+    If you'd rather not type in cover art and release dates, Cartridge can look them up and can
+    read what you own from Steam or Xbox. It needs two things set up in order, so it's off until
+    you ask for it.
   </p>
 
-  <div class="row wrap">
-    <div class="grow">
-      <label for="bridge">Bridge URL</label>
-      <input
-        id="bridge"
-        type="url"
-        bind:value={bridgeDraft}
-        placeholder="https://cartridge-bridge.example.workers.dev"
-      />
-    </div>
-    <button type="button" class="btn" onclick={saveBridge}>Save and test</button>
-  </div>
-
-  <p class="muted status">
-    {#if checking}
-      Checking…
-    {:else if !$bridgeUrl}
-      Not configured — metadata lookup is off.
-    {:else if $bridgeHealth === 'reachable'}
-      Connected.
-    {:else if $bridgeHealth === 'slow'}
-      Reachable, but responding slowly. Adding games by hand still works.
-    {:else if $bridgeHealth === 'unreachable'}
-      Not reachable. Adding games by hand still works.
-    {:else}
-      Configured. It will be tried the next time you search.
-    {/if}
-  </p>
+  <label class="switch">
+    <input
+      type="checkbox"
+      checked={$settings.advanced}
+      onchange={(e) => toggleAdvanced(e.currentTarget.checked)}
+    />
+    <span>Set up lookup and platform accounts</span>
+  </label>
 </section>
 
-<section class="card stack" aria-labelledby="platforms-h">
-  <h2 id="platforms-h">Platforms <span class="pill">Optional</span></h2>
-  <p class="muted">
-    Connecting a platform imports what you own and how long you've played it. Cartridge works
-    exactly as well with nothing connected — this only saves typing.
-  </p>
+{#if $settings.advanced}
+  <section class="card stack" aria-labelledby="bridge-h">
+    <h2 id="bridge-h"><span class="step">Step 1</span> Metadata bridge</h2>
+    <p class="muted">
+      The bridge is a small worker you point Cartridge at. It looks up cover art and release
+      details, and it is the route Steam and Xbox go through — neither can be reached from a
+      browser directly, so <strong>nothing in Step 2 works until this is reachable</strong>. It
+      never sees your library, your ratings or your reviews.
+    </p>
+
+    <div class="row wrap">
+      <div class="grow">
+        <label for="bridge">Bridge URL</label>
+        <input
+          id="bridge"
+          type="url"
+          bind:value={bridgeDraft}
+          placeholder="https://cartridge-bridge.example.workers.dev"
+        />
+      </div>
+      <button type="button" class="btn" onclick={saveBridge}>Save and test</button>
+    </div>
+
+    <p class="muted status">
+      {#if checking}
+        Checking…
+      {:else if !$bridgeUrl}
+        Not configured — lookup is off and the accounts below stay disabled.
+      {:else if $bridgeHealth === 'reachable'}
+        Connected.
+      {:else if $bridgeHealth === 'slow'}
+        Reachable, but responding slowly. Account connections remain available.
+      {:else if $bridgeHealth === 'unreachable'}
+        Not reachable. Adding games by hand still works.
+      {:else}
+        Configured — test it before connecting an account.
+      {/if}
+    </p>
+  </section>
+
+  <section class="card stack" aria-labelledby="platforms-h">
+    <h2 id="platforms-h"><span class="step">Step 2</span> Your platform accounts</h2>
+    <p class="muted">
+      Connecting an account imports the games you own and how long you've played them, and links
+      each one to a game on your shelves. It never touches what you wrote: your ratings, reviews,
+      notes and shelves are yours, and disconnecting leaves every one of them alone.
+    </p>
 
   <div class="platform">
     <div class="row spread wrap">
@@ -410,17 +453,17 @@
             Disconnect
           </button>
         {:else}
-          <button type="button" class="btn primary" onclick={connect} disabled={!$bridgeUrl}>
+          <button type="button" class="btn primary" onclick={connect} disabled={!bridgeReady}>
             Connect Steam
           </button>
         {/if}
       </div>
     </div>
 
-    {#if !$bridgeUrl}
+    {#if !bridgeReady}
       <p class="muted status">
-        Steam needs a bridge: its API has no browser access and requires a server-side key. Set one
-        above and this button turns on.
+        Steam needs a reachable bridge: its API has no browser access and requires a server-side
+        key. Configure and test one above to turn this button on.
       </p>
     {/if}
 
@@ -437,7 +480,7 @@
           playtime and achievements updating again.
         </p>
         <div class="row wrap">
-          <button type="button" class="btn primary" onclick={connect} disabled={!$bridgeUrl}>
+          <button type="button" class="btn primary" onclick={connect} disabled={!bridgeReady}>
             Reconnect Steam
           </button>
         </div>
@@ -557,7 +600,7 @@
             spellcheck="false"
             placeholder="Paste your key"
             bind:value={xboxKey}
-            disabled={!$bridgeUrl || xboxBusy}
+            disabled={!bridgeReady || xboxBusy}
           />
         </div>
         <p class="muted status">
@@ -571,7 +614,7 @@
             type="button"
             class="btn primary"
             onclick={connectXboxNow}
-            disabled={!$bridgeUrl || xboxBusy}
+            disabled={!bridgeReady || xboxBusy}
           >
             {xboxBusy ? 'Checking the key…' : 'Connect Xbox'}
           </button>
@@ -579,10 +622,10 @@
       </div>
     {/if}
 
-    {#if !$bridgeUrl}
+    {#if !bridgeReady}
       <p class="muted status">
         Xbox needs a bridge too — OpenXBL sends no browser CORS headers, so the request has to go
-        through it. Set one above and this turns on.
+        through it. Configure and test one above to turn this on.
       </p>
     {/if}
 
@@ -651,10 +694,11 @@
   </div>
 
   <p class="muted status">PlayStation and Nintendo are still to come.</p>
-</section>
+  </section>
 
-{#if showImport}
-  <ConnectorImport />
+  {#if showImport}
+    <ConnectorImport />
+  {/if}
 {/if}
 
 <style>
@@ -690,5 +734,24 @@
   }
   .notice p:last-child {
     margin-bottom: 0;
+  }
+  .switch {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+  }
+  .switch input {
+    width: auto;
+    margin: 0;
+    flex: none;
+  }
+  .step {
+    display: inline-block;
+    margin-right: var(--spacing-xs);
+    font-size: var(--font-size-overline);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
   }
 </style>
