@@ -138,8 +138,8 @@ curl https://cartridge-bridge.<your-subdomain>.workers.dev/health
 
 ## Point the app at it
 
-- **Per device (no rebuild):** app → **Settings → Metadata bridge**, paste the URL, press
-  **Save and test**.
+- **Per device (no rebuild):** app → **Settings**, turn on **Connecting accounts**, then paste
+  the URL into **Step 1 · Metadata bridge** and press **Save and test**.
 - **Baked into a build (everyone gets it):**
 
   ```bash
@@ -155,8 +155,9 @@ cp .dev.vars.example .dev.vars     # then fill in your own values
 npx wrangler dev                   # serves on http://localhost:8787
 ```
 
-Then set **Settings → Metadata bridge** to `http://localhost:8787`. `ALLOWED_ORIGINS` in
-`.dev.vars` already includes Vite's `http://localhost:5173`.
+Then turn on **Settings → Connecting accounts** and set **Step 1 · Metadata bridge** to
+`http://localhost:8787`. `ALLOWED_ORIGINS` in `.dev.vars` already includes Vite's
+`http://localhost:5173`.
 
 ## How Steam sign-in works
 

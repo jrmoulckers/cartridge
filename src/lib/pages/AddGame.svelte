@@ -15,6 +15,7 @@
   import { fileToCoverData, ImageError } from '../media';
   import MetadataSearch from '../components/MetadataSearch.svelte';
   import CoverArt from '../components/CoverArt.svelte';
+  import { bridgeConfigured } from '../metadata/igdb';
   import type { GameMetadata } from '../metadata/types';
 
   let title = $state('');
@@ -31,6 +32,8 @@
 
   let saving = $state(false);
   let error = $state('');
+  /** Open the optional half of the form once there is something in it worth seeing. */
+  let showMore = $state(false);
 
   const canSave = $derived(cleanText(title).length > 0 && !saving);
 
@@ -66,6 +69,9 @@
     summary = meta.summary ?? '';
     platforms = meta.platforms;
     released = meta.releasedAt ? new Date(meta.releasedAt).toISOString().slice(0, 10) : '';
+    // A lookup writes into the collapsed half of the form. Open it, so what it filled in is
+    // visible and editable rather than hidden behind a summary the user never opened.
+    showMore = true;
     showToast(`Filled in details for ${meta.title}`, 'success');
   }
 
@@ -120,7 +126,14 @@
 
 <h1>Add a game</h1>
 
-<MetadataSearch onselect={applyMetadata} />
+<!--
+  The lookup is a shortcut for people who set a bridge up. With no bridge there is nothing for
+  it to do, so it isn't shown: an explanation of a feature you haven't turned on is just one
+  more thing between you and the title field.
+-->
+{#if $bridgeConfigured}
+  <MetadataSearch onselect={applyMetadata} />
+{/if}
 
 <form class="card stack" onsubmit={save}>
   <div>
@@ -169,57 +182,68 @@
     </div>
   </div>
 
-  <div class="fields">
-    <div>
-      <label for="released">Released</label>
-      <input id="released" type="date" bind:value={released} />
-    </div>
-    <div>
-      <label for="developer">Developer</label>
-      <input id="developer" type="text" bind:value={developer} autocomplete="off" />
-    </div>
-    <div>
-      <label for="publisher">Publisher</label>
-      <input id="publisher" type="text" bind:value={publisher} autocomplete="off" />
-    </div>
-    <div>
-      <label for="genres">Genres</label>
-      <input
-        id="genres"
-        type="text"
-        bind:value={genresText}
-        placeholder="Adventure, Puzzle"
-        autocomplete="off"
-      />
-    </div>
-  </div>
+  <!--
+    Everything past this point is optional, and on a form where only the title is required,
+    showing eight more inputs makes it look like it isn't. Collapsed by default; one click
+    away for anyone who wants it.
+  -->
+  <details class="more" bind:open={showMore}>
+    <summary>More details (optional)</summary>
 
-  <div>
-    <label for="summary">Summary</label>
-    <textarea id="summary" rows="3" bind:value={summary}></textarea>
-  </div>
-
-  <div class="cover-field">
-    <div class="grow stack">
-      <div>
-        <label for="coverUrl">Cover image URL</label>
-        <input id="coverUrl" type="url" bind:value={coverUrl} placeholder="https://…" />
+    <div class="stack detail-body">
+      <div class="fields">
+        <div>
+          <label for="released">Released</label>
+          <input id="released" type="date" bind:value={released} />
+        </div>
+        <div>
+          <label for="developer">Developer</label>
+          <input id="developer" type="text" bind:value={developer} autocomplete="off" />
+        </div>
+        <div>
+          <label for="publisher">Publisher</label>
+          <input id="publisher" type="text" bind:value={publisher} autocomplete="off" />
+        </div>
+        <div>
+          <label for="genres">Genres</label>
+          <input
+            id="genres"
+            type="text"
+            bind:value={genresText}
+            placeholder="Adventure, Puzzle"
+            autocomplete="off"
+          />
+        </div>
       </div>
+
       <div>
-        <label for="coverFile">…or use an image from this device</label>
-        <input id="coverFile" type="file" accept="image/*" onchange={pickCover} />
-        <p class="hint muted">
-          Stored on this device only, resized to keep your backups small.
-          {#if coverData}
-            <button type="button" class="btn small ghost" onclick={() => (coverData = '')}>
-              Remove image
-            </button>
-          {/if}
-        </p>
+        <label for="summary">Summary</label>
+        <textarea id="summary" rows="3" bind:value={summary}></textarea>
+      </div>
+
+      <div class="cover-field">
+        <div class="grow stack">
+          <div>
+            <label for="coverUrl">Cover image URL</label>
+            <input id="coverUrl" type="url" bind:value={coverUrl} placeholder="https://…" />
+          </div>
+          <div>
+            <label for="coverFile">…or use an image from this device</label>
+            <input id="coverFile" type="file" accept="image/*" onchange={pickCover} />
+            <p class="hint muted">
+              Stored on this device only, resized to keep your backups small.
+              {#if coverData}
+                <button type="button" class="btn small ghost" onclick={() => (coverData = '')}>
+                  Remove image
+                </button>
+              {/if}
+            </p>
+          </div>
+        </div>
+        <div class="thumb"><CoverArt game={preview} /></div>
       </div>
     </div>
-    <div class="thumb"><CoverArt game={preview} /></div>
-  </div>
+  </details>
 
   {#if error}
     <p class="error" role="alert">{error}</p>
@@ -258,5 +282,13 @@
   .error {
     margin: 0;
     color: var(--bad);
+  }
+  .more > summary {
+    cursor: pointer;
+    padding: var(--spacing-xs) 0;
+    font-weight: 600;
+  }
+  .detail-body {
+    padding-top: var(--spacing-sm);
   }
 </style>
