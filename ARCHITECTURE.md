@@ -98,12 +98,22 @@ What follows is where each boundary lands in this repo.
 | Types      | `src/lib/types.ts`                                                                    | The domain vocabulary. No behaviour.                                                            |
 | Storage    | `src/lib/storage/db.ts`                                                               | The only module that touches IndexedDB.                                                         |
 | Backup     | `src/lib/storage/backup.ts`                                                           | The `cartridge/backup` envelope, and the guard against restoring a foreign file.                |
-| Stores     | `src/lib/stores/*`                                                                    | The only thing components talk to for data. Writes go to `db` first, then refresh.              |
+| Stores     | `src/lib/stores/*`                                                                    | The only thing components talk to for persisted data. Writes go to `db` first, then refresh.    |
 | Pure logic | `src/lib/library/*`, `src/lib/stats/*`, `markdown.ts`, `util.ts`, `metadata/match.ts` | No DOM, no IO. Unit-tested directly.                                                            |
 | Metadata   | `src/lib/metadata/*`                                                                  | The only code in the app that makes a network request.                                          |
 | Connectors | `src/lib/connectors/*`                                                                | Interface + error boundary + implementations. `sync.ts` is pure; `apply.ts` is the only writer. |
-| UI         | `src/lib/components/*`, `src/lib/pages/*`                                             | Presentation. Never reaches past a store.                                                       |
+| UI         | `src/lib/components/*`, `src/lib/pages/*`                                             | Presentation. Reaches persisted data only through a store — never IndexedDB, never the network. |
 | Bridge     | `bridge/`                                                                             | Separate deployable, own tsconfig, own release cadence.                                         |
+
+Five of those rules are executable, not aspirational: `npm run check:boundaries` proves that the
+pure layer performs no IO, that `src/lib/metadata` is the only caller of `fetch`, that
+`connectors/sync.ts` stays pure, that `storage/db` is reachable only from the stores and
+`connectors/apply.ts`, and that no component or page touches persistence directly. It runs in CI.
+
+The rules are stated by **file kind rather than directory** on purpose. "Nothing under `lib/`
+imports the framework" is the kind of claim that is true when written and quietly false the day
+someone colocates a component next to the logic it renders. Each rule also reports how many files
+it selected, so a glob that stops matching fails loudly instead of passing vacuously.
 
 ## Data model
 

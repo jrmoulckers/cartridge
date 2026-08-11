@@ -70,7 +70,10 @@ jobs:
       # It resolves the newest upstream release too, but only warns (exit 0), so an upstream
       # tag can never redden an unrelated PR, and the lookup fails soft if the API is
       # unreachable or rate-limited.
-      lint-command: npm run vendor:check && npm run lint
+      # `check:boundaries` proves the layering claims ARCHITECTURE.md makes — an invariant
+      # nothing checks is only a comment. It runs before `lint` so a broken boundary is
+      # reported as a boundary failure rather than buried in rule output.
+      lint-command: npm run vendor:check && npm run check:boundaries && npm run lint
       format-check-command: npm run format:check
       semantic-pr-title: true
       registry-url: https://npm.pkg.github.com
