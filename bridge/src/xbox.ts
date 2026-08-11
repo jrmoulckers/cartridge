@@ -333,7 +333,7 @@ export async function getTitleAchievements(
   if (!isXuid(xuid)) throw new UpstreamError(400, 'That is not an Xbox user id.');
   if (!isTitleId(titleId)) throw new UpstreamError(400, 'That is not an Xbox title id.');
 
-  let rows: RawAchievement[] = [];
+  let rows: RawAchievement[];
   try {
     const data = await call<{ achievements?: RawAchievement[] }>(
       key,

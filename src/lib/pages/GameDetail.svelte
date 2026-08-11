@@ -49,7 +49,7 @@
     title?: string;
   }
 
-  let { id, title = $bindable(undefined) }: Props = $props();
+  let { id, title = $bindable() }: Props = $props();
 
   // Re-derived from the store so an edit anywhere refreshes this page.
   const item = $derived($library.find((i) => i.game.id === id) ?? findItem(id));
