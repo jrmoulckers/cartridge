@@ -11,16 +11,21 @@ names the rule, and the sentence after it is the product-specific part — what 
 "degrades" concretely means for a games library, and where a test proves it.
 
 1. **The app works fully offline with zero connectors attached.**
-   [`ENG-LOCAL-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
-   and [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md).
+   Two obligations, one clause each: the device's durable store is the system of record
+   ([`ENG-LOCAL-001` (Local durable ownership)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)),
+   and core operation starts with no external service configured
+   ([`ENG-LOCAL-004` (Zero-config safe degradation)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)).
    Cartridge-specific: not "degrades gracefully" — _works_. Boot, add a game, shelve it, rate
    it, review it, search it, back it up: all of it, with no network and no accounts. Enforced
    by `src/lib/offline.test.ts`, which stubs `fetch` to reject and asserts it is never called.
 
 2. **No credential leaves the device except to the bridge, per request.**
-   [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
-   and [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md).
-   Cartridge-specific: platform credentials live in IndexedDB on the user's device. A
+   The browser is an untrusted seam, so no Cartridge-held secret ships to it
+   ([`ENG-WEB-001` (Browser trust seam)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md));
+   the bridge's own secrets stay out of source, artifacts and logs and are injected at runtime
+   ([`ENG-SEC-001` (Secret lifecycle)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)).
+   Cartridge-specific: a user's platform credential is theirs rather than Cartridge's, and is
+   the deliberate exception to "out of clients" — it lives in IndexedDB on their own device. A
    connector may send one to the bridge to make a call that requires it, for the duration of
    that call. Nothing else.
 
