@@ -188,6 +188,12 @@ runs of identical `minutesPlayed` is the obvious fix and stays available.
 
 A stateless Cloudflare Worker. It exists because IGDB requires a client secret a static PWA
 cannot hold, and because neither the Steam Web API nor OpenXBL will answer a browser directly.
+It is Cartridge's instance of
+[`ENG-INT-005` (Credential proxy isolation)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md):
+a narrow proxy holding the third-party credentials, with an explicit origin allowlist
+(`bridge/src/cors.ts` — no wildcard, no pattern matching), an explicit operation allowlist
+(every route matched by name in `bridge/src/index.ts`, default-deny 404), and no user-data
+persistence.
 
 - **Auth**: Twitch client-credentials, token cached in KV until shortly before expiry,
   never returned to the client. Xbox needs no bridge secret — the key is the user's and
@@ -197,7 +203,10 @@ cannot hold, and because neither the Steam Web API nor OpenXBL will answer a bro
 - **Cache**: search 24h, game 7d in KV; `Cache-Control` echoed to the browser. Steam
   achievement schemas and appid → IGDB mappings cache for 30 days, keyed by appid, and
   title → IGDB matches for 7 days keyed by the normalised title — public
-  facts about a game, not about a person.
+  facts about a game, not about a person. Every entry is keyed, TTL-bounded and versioned
+  rather than invalidated, per
+  [`ENG-INT-002` (Explicit seam caches)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md);
+  none of it is a source of truth, and a cold cache changes latency, not answers.
 - **Hardening**: exact-match CORS allowlist, `GET` only, bounded input, per-IP throttle, one
   error envelope, no upstream stack traces.
 
@@ -384,6 +393,39 @@ Cartridge consumes the JRM Studio backbone rather than inventing its own foundat
   `principles/index.json` in that repo.
 - **`AGENTS.md`** — product-local rules, with the managed studio base between
   `<!-- studio:base:start -->` and `<!-- studio:base:end -->`.
+
+### What was evaluated and excluded
+
+Citations record what binds. On their own they cannot distinguish a principle that was read
+and excluded from one that was never read, so the exclusions are written down too — per
+principle, never per area, and each with the condition that would reopen it.
+
+- [`ENG-API-002` (Persistence-aware services)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
+  — the bridge owns no durable store. Its KV entries are TTL-bounded, versioned by key, and
+  reconstructible from upstream, so there is no schema to migrate forward-safely.
+  **Re-evaluate if** the bridge gains state a cold start cannot rebuild.
+- [`ENG-OBS-004` (End-to-end correlation)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/observability.md)
+  — one trust hop, browser → bridge → upstream, with no fan-out to correlate across.
+  **Re-evaluate if** a second server-side component appears.
+- [`ENG-OBS-006` (SLO evidence)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/observability.md)
+  — the bridge is deployed per-user by the person holding the keys, so there is no service
+  level anyone is owed. **Re-evaluate if** a shared hosted bridge is offered to users who
+  don't run it.
+- [`ENG-BUILD-003` (Additive semantic evolution)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/build-and-release.md)
+  and [`ENG-BUILD-004` (Generated changesets and changelogs)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/build-and-release.md)
+  — Cartridge publishes no package and exposes no public contract to version; it is deployed,
+  not released. **Re-evaluate if** any module or the bridge is published to a registry.
+
+Two absences that are **gaps rather than exclusions**, recorded because an uncited obligation
+is easy to mistake for one that doesn't apply:
+
+- [`ENG-API-001` (Typed versioned APIs)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
+  — the bridge parses its inputs and returns one structured error envelope, but its routes
+  carry no declared version, so a breaking change has no migration path for an already
+  deployed client.
+- [`ENG-ARCH-003` (Durable decisions)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+  — Cartridge records no ADRs. The tradeoffs in this document are argued where they arise
+  rather than at a durable decision boundary.
 
 **Needs human action:** `jrmoulckers/cartridge` is not yet a member in
 `jrmoulckers/.github`'s `studio.config.json`. Until it is, the vendored tokens and canon are
