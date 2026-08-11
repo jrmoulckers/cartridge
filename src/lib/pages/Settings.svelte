@@ -6,7 +6,14 @@
    * Backup and restore live here because they are the only durable answer to "what happens
    * to my library if this device dies" in a local-first app — and both work offline.
    */
-  import { settings, setTheme, setView, setBridgeUrl, type Theme } from '../stores/settings';
+  import {
+    settings,
+    setTheme,
+    setView,
+    setBridgeUrl,
+    setAdvanced,
+    type Theme,
+  } from '../stores/settings';
   import { library, refreshLibrary } from '../stores/library';
   import { refreshShelves } from '../stores/shelves';
   import { showToast } from '../stores/toast';
@@ -319,49 +326,73 @@
   {/if}
 </section>
 
-<section class="card stack" aria-labelledby="bridge-h">
-  <h2 id="bridge-h">Metadata bridge <span class="pill">Optional</span></h2>
+<section class="card stack" aria-labelledby="connect-h">
+  <h2 id="connect-h">Connecting accounts <span class="pill">Optional</span></h2>
   <p class="muted">
-    The bridge is a small worker that looks up cover art and release details so you don't have
-    to type them. It never sees your library, your ratings or your reviews — only the words you
-    type into a search box. Leave it blank and Cartridge works exactly as it does now, just
-    with more typing.
+    Cartridge is a shelf, not an account. You add a game, put it on a shelf, rate it and write
+    about it — all of that works on this device with nothing signed in and no connection.
+  </p>
+  <p class="muted">
+    If you'd rather not type in cover art and release dates, Cartridge can look them up and can
+    read what you own from Steam or Xbox. It needs two things set up in order, so it's off until
+    you ask for it.
   </p>
 
-  <div class="row wrap">
-    <div class="grow">
-      <label for="bridge">Bridge URL</label>
-      <input
-        id="bridge"
-        type="url"
-        bind:value={bridgeDraft}
-        placeholder="https://cartridge-bridge.example.workers.dev"
-      />
-    </div>
-    <button type="button" class="btn" onclick={saveBridge}>Save and test</button>
-  </div>
-
-  <p class="muted status">
-    {#if checking}
-      Checking…
-    {:else if !$bridgeUrl}
-      Not configured — metadata lookup is off.
-    {:else if $bridgeAvailable === true}
-      Connected.
-    {:else if $bridgeAvailable === false}
-      Not reachable. Adding games by hand still works.
-    {:else}
-      Configured. It will be tried the next time you search.
-    {/if}
-  </p>
+  <label class="switch">
+    <input
+      type="checkbox"
+      checked={$settings.advanced}
+      onchange={(e) => setAdvanced(e.currentTarget.checked)}
+    />
+    <span>Set up lookup and platform accounts</span>
+  </label>
 </section>
 
-<section class="card stack" aria-labelledby="platforms-h">
-  <h2 id="platforms-h">Platforms <span class="pill">Optional</span></h2>
-  <p class="muted">
-    Connecting a platform imports what you own and how long you've played it. Cartridge works
-    exactly as well with nothing connected — this only saves typing.
-  </p>
+{#if $settings.advanced}
+  <section class="card stack" aria-labelledby="bridge-h">
+    <h2 id="bridge-h"><span class="step">Step 1</span> Metadata bridge</h2>
+    <p class="muted">
+      The bridge is a small worker you point Cartridge at. It looks up cover art and release
+      details, and it is the route Steam and Xbox go through — neither can be reached from a
+      browser directly, so <strong>nothing in Step 2 works until this is set</strong>. It never
+      sees your library, your ratings or your reviews.
+    </p>
+
+    <div class="row wrap">
+      <div class="grow">
+        <label for="bridge">Bridge URL</label>
+        <input
+          id="bridge"
+          type="url"
+          bind:value={bridgeDraft}
+          placeholder="https://cartridge-bridge.example.workers.dev"
+        />
+      </div>
+      <button type="button" class="btn" onclick={saveBridge}>Save and test</button>
+    </div>
+
+    <p class="muted status">
+      {#if checking}
+        Checking…
+      {:else if !$bridgeUrl}
+        Not configured — lookup is off and the accounts below stay disabled.
+      {:else if $bridgeAvailable === true}
+        Connected.
+      {:else if $bridgeAvailable === false}
+        Not reachable. Adding games by hand still works.
+      {:else}
+        Configured. It will be tried the next time you search.
+      {/if}
+    </p>
+  </section>
+
+  <section class="card stack" aria-labelledby="platforms-h">
+    <h2 id="platforms-h"><span class="step">Step 2</span> Your platform accounts</h2>
+    <p class="muted">
+      Connecting an account imports the games you own and how long you've played them, and links
+      each one to a game on your shelves. It never touches what you wrote: your ratings, reviews,
+      notes and shelves are yours, and disconnecting leaves every one of them alone.
+    </p>
 
   <div class="platform">
     <div class="row spread wrap">
@@ -644,10 +675,11 @@
   </div>
 
   <p class="muted status">PlayStation and Nintendo are still to come.</p>
-</section>
+  </section>
 
-{#if showImport}
-  <ConnectorImport />
+  {#if showImport}
+    <ConnectorImport />
+  {/if}
 {/if}
 
 <style>
@@ -683,5 +715,24 @@
   }
   .notice p:last-child {
     margin-bottom: 0;
+  }
+  .switch {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+  }
+  .switch input {
+    width: auto;
+    margin: 0;
+    flex: none;
+  }
+  .step {
+    display: inline-block;
+    margin-right: var(--spacing-xs);
+    font-size: var(--font-size-overline);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
   }
 </style>
