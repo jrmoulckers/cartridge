@@ -25,10 +25,9 @@ names the rule, and the sentence after it is the product-specific part — what 
    that call. Nothing else.
 
 3. **The bridge never persists a user's library.**
-   A Cartridge convention, not a ratified rule; the obligation beneath it is the
-   data-minimization half of
-   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md).
-   Its lifecycle-evidence half does not bind here, and that is the point: storing nothing
+   A Cartridge convention, not a ratified rule; the obligation beneath it is
+   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md) — its data-minimization half only.
+   The lifecycle-evidence half does not bind here, and that is the point: storing nothing
    personal means there is no collection, retention, export or deletion to produce evidence
    for. [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
    _additionally_ holds the bridge's own credentials to least authority.
@@ -400,30 +399,32 @@ Citations record what binds. On their own they cannot distinguish a principle th
 and excluded from one that was never read, so the exclusions are written down too — per
 principle, never per area, and each with the condition that would reopen it.
 
-- [`ENG-API-002` (Persistence-aware services)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
+- **Out of scope.** [`ENG-API-002` (Persistence-aware services)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   — the bridge owns no durable store. Its KV entries are TTL-bounded, versioned by key, and
   reconstructible from upstream, so there is no schema to migrate forward-safely.
   **Re-evaluate if** the bridge gains state a cold start cannot rebuild.
-- [`ENG-OBS-004` (End-to-end correlation)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/observability.md)
+- **Out of scope.** [`ENG-OBS-004` (End-to-end correlation)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/observability.md)
   — one trust hop, browser → bridge → upstream, with no fan-out to correlate across.
   **Re-evaluate if** a second server-side component appears.
-- [`ENG-OBS-006` (SLO evidence)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/observability.md)
+- **Out of scope.** [`ENG-OBS-006` (SLO evidence)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/observability.md)
   — the bridge is deployed per-user by the person holding the keys, so there is no service
   level anyone is owed. **Re-evaluate if** a shared hosted bridge is offered to users who
   don't run it.
-- [`ENG-BUILD-003` (Additive semantic evolution)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/build-and-release.md)
-  and [`ENG-BUILD-004` (Generated changesets and changelogs)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/build-and-release.md)
+- **Out of scope.** [`ENG-BUILD-003` (Additive semantic evolution)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/build-and-release.md)
   — Cartridge publishes no package and exposes no public contract to version; it is deployed,
   not released. **Re-evaluate if** any module or the bridge is published to a registry.
+- **Out of scope.** [`ENG-BUILD-004` (Generated changesets and changelogs)](https://github.com/jrmoulckers/engineering/blob/main/principles/operations/build-and-release.md)
+  — no release artifact to generate a version or changelog for, for the same reason.
+  **Re-evaluate if** any module or the bridge is published to a registry.
 
 Two absences that are **gaps rather than exclusions**, recorded because an uncited obligation
 is easy to mistake for one that doesn't apply:
 
-- [`ENG-API-001` (Typed versioned APIs)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
+- **Binds, not satisfied.** [`ENG-API-001` (Typed versioned APIs)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   — the bridge parses its inputs and returns one structured error envelope, but its routes
   carry no declared version, so a breaking change has no migration path for an already
   deployed client.
-- [`ENG-ARCH-003` (Durable decisions)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+- **Binds, not satisfied.** [`ENG-ARCH-003` (Durable decisions)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
   — Cartridge records no ADRs. The tradeoffs in this document are argued where they arise
   rather than at a durable decision boundary.
 
