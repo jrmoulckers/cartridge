@@ -1,7 +1,7 @@
 {
   "repository": "jrmoulckers/engineering",
-  "ref": "v0.15.4",
-  "fetchedAt": "2026-08-11T15:34:59.213Z",
+  "ref": "v0.15.7",
+  "fetchedAt": "2026-08-11T15:49:08.633Z",
   "refresh": "node scripts/vendor-configs.mjs <newer-ref>",
   "files": {
     "config/engineering/tsconfig/base.json": {
