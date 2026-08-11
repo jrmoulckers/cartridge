@@ -260,7 +260,7 @@ async function getSchemaTotal(env: Env, appid: string): Promise<number | null> {
   const cached = await readCache<{ total: number | null }>(env, key);
   if (cached) return cached.total;
 
-  let total: number | null = null;
+  let total: number | null;
   try {
     const data = await call<{
       game?: { availableGameStats?: { achievements?: unknown[] } };

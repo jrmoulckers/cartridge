@@ -105,13 +105,18 @@ automation plus shared agent assets in
 
 ## Deviations from the shared principles
 
-- **No shared lint/format presets.** `@jrm/eslint-config`, `@jrm/prettier-config`,
-  `@jrm/tsconfig` and `@jrm/tailwind-preset` have no transport to member repos — the sync
-  engine vendors `packages/tokens/dist` only, and nothing is published to a registry (see
-  studio's README transport table). Cartridge therefore carries no ESLint/Prettier yet, so
-  `ci.yml` calls `reusable-ci-lint` with `lint-command` and `format-check-command` set to
-  empty strings — its lint job self-skips and only the semantic-PR-title check runs. Give
-  those two inputs real commands once the repo has lint/format scripts.
+- **Shared lint/format presets come from `jrmoulckers/engineering`, not `jrmoulckers/studio`.** The
+  `@jrm/*` presets named in studio's README transport table (`@jrm/eslint-config`,
+  `@jrm/prettier-config`, `@jrm/tsconfig`, `@jrm/tailwind-preset`) still have no transport — the
+  sync engine vendors `packages/tokens/dist` only. Cartridge instead consumes the
+  `@jrmoulckers/*` presets over the two channels defined in engineering's ADR-0001:
+  `@jrmoulckers/eslint-config` from GitHub Packages (a `devDependency`, so `npm ci --omit=dev`
+  never needs a token), and `@jrmoulckers/tsconfig` / `@jrmoulckers/prettier-config` vendored
+  into `config/engineering/` at a pinned ref by `scripts/vendor-configs.mjs`. `npm run
+  vendor:check` verifies the vendored tree against `engineering-configs.lock.json` and fails on
+  drift, so `ci.yml` passes it to `reusable-ci-lint` as
+  `lint-command: npm run vendor:check && npm run lint`. Both that input and
+  `format-check-command` carry real commands — the lint job no longer self-skips.
 - **Credential boundary is a Worker, not a Next.js server.**
   [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
