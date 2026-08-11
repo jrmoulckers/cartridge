@@ -1,5 +1,5 @@
 {
-  "extends": "@jrmoulckers/tsconfig/vite-app.json",
+  "extends": "./config/engineering/tsconfig/vite-app.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     /* Svelte's ambient types, and `.svelte` imports are checked by svelte-check

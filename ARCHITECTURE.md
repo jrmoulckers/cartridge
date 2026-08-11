@@ -31,7 +31,7 @@ names the rule, and the sentence after it is the product-specific part — what 
    Its lifecycle-evidence half does not bind here, and that is the point: storing nothing
    personal means there is no collection, retention, export or deletion to produce evidence
    for. [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
-   *additionally* holds the bridge's own credentials to least authority.
+   _additionally_ holds the bridge's own credentials to least authority.
    Cartridge-specific: it caches public IGDB metadata and its own Twitch app token. It has no
    endpoint that accepts user data, no cookies, no identifiers, no request-body logs.
 

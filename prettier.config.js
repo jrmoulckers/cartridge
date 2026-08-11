@@ -1,1 +1,1 @@
-export { default } from '@jrmoulckers/prettier-config/svelte';
+export { default } from './config/engineering/prettier/svelte.js';

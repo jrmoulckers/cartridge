@@ -17,8 +17,6 @@
   },
   "devDependencies": {
     "@jrmoulckers/eslint-config": "^0.8.0",
-    "@jrmoulckers/prettier-config": "^0.3.0",
-    "@jrmoulckers/tsconfig": "^0.3.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@types/node": "^24.13.2",
     "eslint": "^9.0.0",
