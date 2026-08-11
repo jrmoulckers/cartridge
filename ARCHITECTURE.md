@@ -31,16 +31,16 @@ names the rule, and the sentence after it is the product-specific part — what 
 
 3. **The bridge never persists a user's library.**
    A Cartridge convention, not a ratified rule; the obligation beneath it is
-   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md) — its data-minimization half only.
+   [`ENG-SEC-008` (Privacy-minimizing lifecycle evidence)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md) — its data-minimization half only.
    The lifecycle-evidence half does not bind here, and that is the point: storing nothing
    personal means there is no collection, retention, export or deletion to produce evidence
-   for. [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+   for. [`ENG-SEC-004` (Least authority)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
    _additionally_ holds the bridge's own credentials to least authority.
    Cartridge-specific: it caches public IGDB metadata and its own Twitch app token. It has no
    endpoint that accepts user data, no cookies, no identifiers, no request-body logs.
 
 4. **A failing connector degrades one tab, never the whole app.**
-   [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md);
+   [`ENG-LOCAL-004` (Zero-config safe degradation)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md);
    see [resilience](https://github.com/jrmoulckers/engineering/blob/main/practices/resilience.md).
    Cartridge-specific: enforced structurally by `src/lib/connectors/registry.ts`, which
    catches everything a connector can throw, records it against that platform alone, and
@@ -93,7 +93,7 @@ product still does its job.
 ## Layers
 
 The direction of the arrows is
-[`ENG-ARCH-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+[`ENG-ARCH-001` (Minimal directed boundaries)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
 — see [frontend layering](https://github.com/jrmoulckers/engineering/blob/main/practices/frontend-layering.md).
 What follows is where each boundary lands in this repo.
 
@@ -122,7 +122,7 @@ it selected, so a glob that stops matching fails loudly instead of passing vacuo
 ## Data model
 
 IndexedDB database `cartridge`, version 3. Merge behaviour follows
-[`ENG-LOCAL-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+[`ENG-LOCAL-003` (Declared conflict model)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
 — see [local-first sync](https://github.com/jrmoulckers/engineering/blob/main/practices/local-first-sync.md).
 
 Cartridge-specific: every record carries `id`, `createdAt`, `updatedAt` and an optional
@@ -232,10 +232,10 @@ See `bridge/README.md` for the secrets and how to obtain them.
 ## Connectors
 
 Connectors are Cartridge's instance of
-[`ENG-LOCAL-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md):
+[`ENG-LOCAL-002` (Optional sync seam)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md):
 one narrow provider contract that core local operation never waits on. Each implementation is
 the thin single-purpose adapter
-[`ENG-INT-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+[`ENG-INT-001` (Thin typed adapters)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
 asks for — provider quirks are parsed into Cartridge's own types at the edge and go no further.
 
 A connector answers four questions about a platform — who you are, what you own, what you've
@@ -281,7 +281,7 @@ knowledge; replacing a value is an opinion about someone else's library.
 
 The second connector, and the one that tested whether the interface generalised. It mostly
 did: three **additive** changes were all it needed — the evolution
-[`ENG-ARCH-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+[`ENG-ARCH-002` (Explicit additive contracts)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
 asks for — `Capabilities.playtimeCoverage`,
 `ConnectorGame.achievements` and `SyncPlan.matchingIncomplete`. Each is documented where it is
 declared, with the Xbox fact that forced it.
@@ -349,7 +349,7 @@ no reliable completion times).
 ### Performance and payload
 
 The delivery budget is
-[`ENG-WEB-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md),
+[`ENG-WEB-003` (Measured foreground performance)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md),
 enforced in CI by the `perf` job's `bundle-budget-kb` — see
 [performance budgets](https://github.com/jrmoulckers/engineering/blob/main/practices/performance-budgets.md).
 
@@ -440,7 +440,7 @@ a point-in-time copy rather than an automatically synced one. See `vendor/README
 ## Testing
 
 Static signals stay separate from behaviour tests, per
-[`ENG-TEST-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md):
+[`ENG-TEST-004` (Distinct static signals)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md):
 `npm run check`, `npm test` and `npm run build` each report on their own and are not
 collapsed into one script.
 
