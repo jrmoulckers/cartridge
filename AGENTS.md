@@ -117,16 +117,33 @@ automation plus shared agent assets in
   drift, so `ci.yml` passes it to `reusable-ci-lint` as
   `lint-command: npm run vendor:check && npm run lint`. Both that input and
   `format-check-command` carry real commands — the lint job no longer self-skips.
-- **`@jrmoulckers/eslint-config` is held below `0.11.0` on purpose.** The range is
-  `>=0.10.0 <0.11.0`, not the usual open `<1.0.0` ceiling. `0.11.0` enables `prefer-const`
-  without exempting `.svelte`, and ESLint cannot see writes made through a template `bind:`
-  directive — so it reports a `let { … } = $props()` destructuring that contains a
-  `$bindable()` prop as never-reassigned. Taking that advice makes the Svelte compiler fail
-  with `Cannot bind to constant`, so the rule's suggestion is build-breaking rather than
-  merely noisy. Measured on this repo at `0.11.0`: 35 errors, all `prefer-const`, all in
-  `.svelte`, none in `.ts`. Do not widen the ceiling or disable the rule locally — the fix
-  belongs in `jrmoulckers/engineering`. Re-evaluate when a release exempts `prefer-const`
-  for `.svelte`.
+- **`@jrmoulckers/eslint-config` is held below `0.11.0`, and the hold has a known cost.** The
+  range is `>=0.10.0 <0.11.0`, not the usual open `<1.0.0` ceiling. `0.11.0` makes
+  `typescript-eslint`'s `eslint-recommended` layer reach `.svelte` — previously it was scoped
+  to `**/*.ts`. That single change has two opposite effects, both measured here by resolving
+  the config for a `.svelte` and a `.ts` file:
+
+  | Rule in `.svelte` | `0.10.0` | `0.11.0` |
+  | --- | --- | --- |
+  | `no-undef` | `error` — wrong | `off` — **fixed** |
+  | `prefer-const` | absent — correct | `error` — **regression** |
+
+  The regression is build-breaking, not merely noisy. ESLint cannot see writes made through a
+  template `bind:` directive, so it reports a `let { … } = $props()` destructuring containing a
+  `$bindable()` prop as never-reassigned; acting on that fails the Svelte compiler with
+  `Cannot bind to constant`. At `0.11.0` this repo reports 35 errors, all `prefer-const`, all
+  in `.svelte`, none in `.ts`.
+
+  The cost of holding: `no-undef` stays live in `<script lang="ts">`, where
+  `typescript-eslint` should have disabled it, and 20 of this repo's 21 components use
+  `lang="ts"`. It currently reports zero errors, so the defect is latent rather than active —
+  but it is reproducible, and fires on an ambient namespace (`let t: NodeJS.Timeout` yields
+  `'NodeJS' is not defined`), which is legitimate TypeScript. If you hit that, the code is
+  correct and the linter is wrong; do not rename around it.
+
+  Do not widen the ceiling and do not disable either rule locally — the fix belongs in
+  `jrmoulckers/engineering`, and is `0.11.0`'s scoping plus a `prefer-const` exemption for
+  `.svelte`. Re-evaluate on the release that carries both.
 - **Credential boundary is a Worker, not a Next.js server.**
   [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
