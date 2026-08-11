@@ -67,9 +67,8 @@ jobs:
       package-manager: npm
       # vendor:check verifies config/engineering/** against engineering-configs.lock.json.
       # A hand-edit to a generated file otherwise makes "vendored at ref X" a false claim.
-      # It resolves the newest upstream release too, but only warns (exit 0), so an upstream
-      # tag can never redden an unrelated PR, and the lookup fails soft if the API is
-      # unreachable or rate-limited.
+      # Its drift-vs-staleness semantics are upstream's to define, not ours to restate here —
+      # see docs/adopting.md in jrmoulckers/engineering.
       # `check:boundaries` proves the layering claims ARCHITECTURE.md makes — an invariant
       # nothing checks is only a comment. It runs before `lint` so a broken boundary is
       # reported as a boundary failure rather than buried in rule output.
