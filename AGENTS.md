@@ -117,6 +117,16 @@ automation plus shared agent assets in
   drift, so `ci.yml` passes it to `reusable-ci-lint` as
   `lint-command: npm run vendor:check && npm run lint`. Both that input and
   `format-check-command` carry real commands — the lint job no longer self-skips.
+- **`@jrmoulckers/eslint-config` is held below `0.11.0` on purpose.** The range is
+  `>=0.10.0 <0.11.0`, not the usual open `<1.0.0` ceiling. `0.11.0` enables `prefer-const`
+  without exempting `.svelte`, and ESLint cannot see writes made through a template `bind:`
+  directive — so it reports a `let { … } = $props()` destructuring that contains a
+  `$bindable()` prop as never-reassigned. Taking that advice makes the Svelte compiler fail
+  with `Cannot bind to constant`, so the rule's suggestion is build-breaking rather than
+  merely noisy. Measured on this repo at `0.11.0`: 35 errors, all `prefer-const`, all in
+  `.svelte`, none in `.ts`. Do not widen the ceiling or disable the rule locally — the fix
+  belongs in `jrmoulckers/engineering`. Re-evaluate when a release exempts `prefer-const`
+  for `.svelte`.
 - **Credential boundary is a Worker, not a Next.js server.**
   [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
