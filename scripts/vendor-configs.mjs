@@ -24,6 +24,13 @@
  * Usage:
  *   node scripts/vendor-configs.mjs <ref> [--dest <dir>] [--set tsconfig,prettier]
  *
+ * `--dest` is a probe: it writes the fetched files somewhere else and leaves the
+ * lock alone. It used to write the lock anyway, keyed by the destination, which
+ * silently disarmed `--check` — every recorded path pointed at scratch, so the
+ * guard verified files outside the repository and exited 0 while a vendored file
+ * in the tree was tampered with. The machine that ran the probe is the one where
+ * those absolute paths still resolve, so it is the least able to notice.
+ *
  * Files are written byte-identical to source — no generated header — so that
  * `git diff` after a re-run shows exactly what upstream changed and nothing
  * else. Provenance lives in the lock file instead.
@@ -235,6 +242,7 @@ async function main() {
     fail('a ref is required', 'Pass a tag, not a branch: node scripts/vendor-configs.mjs v1.2.3');
   }
   const dest = flags.dest ?? 'config/engineering';
+  const isProbe = flags.dest !== undefined;
   const names = (flags.set ?? Object.keys(SETS).join(',')).split(',').map((s) => s.trim());
   for (const name of names) {
     if (!SETS[name]) fail(`unknown set '${name}'`, `Known sets: ${Object.keys(SETS).join(', ')}`);
@@ -278,17 +286,31 @@ async function main() {
     // No previous lock: this is a first vendor.
   }
 
-  await writeFile(LOCK, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
-
   process.stdout.write(`Vendored ${staged.length} file(s) from ${REPO}@${ref} into ${dest}/\n`);
+
   if (previous && previous.ref !== ref) {
-    const changed = staged.filter(
-      (item) => previous.files?.[item.dest.split('\\').join('/')]?.sha256 !== sha256(item.text),
+    // Compare by upstream source path, not by destination. A destination-keyed
+    // lookup misses every entry the moment `--dest` moves, so the count reports
+    // "all changed" for a refresh that changed nothing.
+    const before = new Map(
+      Object.values(previous.files ?? {}).map((meta) => [meta.source, meta.sha256]),
     );
+    const changed = staged.filter((item) => before.get(item.path) !== sha256(item.text));
     process.stdout.write(
       `Ref moved ${previous.ref} -> ${ref}; ${changed.length} file(s) changed content.\n`,
     );
   }
+
+  if (isProbe) {
+    process.stdout.write(
+      `--dest given, so ${LOCK} was NOT written: it records what this repository ` +
+        `vendors, and pointing it at a scratch directory would make --check verify ` +
+        `files outside the tree and pass regardless of drift.\n`,
+    );
+    return;
+  }
+
+  await writeFile(LOCK, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
   process.stdout.write(`Recorded ref and SHA-256 of each file in ${LOCK}. Commit both.\n`);
 }
 
