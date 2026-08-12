@@ -156,8 +156,14 @@ automation plus shared agent assets in
   **The single condition that lifts this hold** is `eslint-plugin-svelte`'s `svelte/prefer-const`
   being enabled for `.svelte` in the preset, in place of the base rule. That rule understands
   `$bindable` and takes this repository from 35 errors to 0; it has been verified locally and
-  raised upstream repeatedly. It is unreachable while the preset's peer range still admits
-  `eslint-plugin-svelte@2`, which does not ship the rule. Until then, treat the ceiling as
+  raised upstream repeatedly. **The blocker is the preset's rule selection, not its peer range** —
+  an earlier revision of this note claimed the fix was unreachable while the peer range admitted
+  `eslint-plugin-svelte@2`, and that was wrong. Measured directly at `eslint-config@0.17.0`:
+  installing `eslint-plugin-svelte@3.22.0` makes `svelte/prefer-const` exist
+  (`'prefer-const' in plugin.rules === true`), and the resolved config for a `.svelte` file still
+  reports base `prefer-const` at `error` with `svelte/prefer-const` **absent** — 35 errors,
+  unchanged. So no action available here lifts it; the preset must enable the rule. Until then,
+  treat the ceiling as
   permanent rather than provisional — a hold labelled "temporary" for seven releases reads as
   work in progress and stops anyone re-examining it.
 
@@ -167,9 +173,27 @@ automation plus shared agent assets in
   form when `0.11.0` broke the build. It was not a mistake at the time — it made `0.9.0`
   reachable with no manifest edit, which was the point — but it stops working precisely when a
   minor turns hostile, which on this package it did. Upstream peer declarations have themselves
-  moved twice within minors (seven peers at `0.8.0`, two at `0.9.0`, seven again at `0.16.0`), so
+  moved twice within minors (seven peers at `0.8.0`, two at `0.9.0`, seven again at `0.12.0`), so
   a range wider than one minor admits genuinely breaking change on a `0.x` dependency. Stranding
   fails safe; auto-upgrading does not.
+- **`0.9.0`–`0.11.0` carry an upstream defect that does not reach this repo, and `0.10.0` is held
+  deliberately in spite of it.** In that window the five framework plugins were moved out of
+  `peerDependencies` into a bespoke `frameworkPlugins` key that no package manager reads, while
+  `react.js` and `next.js` still import them at module scope. Measured at `0.10.0`: `./react` and
+  `./next` fail to load with `ERR_MODULE_NOT_FOUND`, while `./svelte` and `./base` load cleanly.
+  Cartridge imports `svelteConfig()` from `./svelte` and nothing else, so the broken subpaths are
+  unreachable here — `lint` exits 0 and every gate passes. What makes `./svelte` work is that this
+  repo declares `eslint-plugin-svelte` itself; at `0.10.0` nothing upstream would install it.
+  Keep that declaration — it is load-bearing, not redundant.
+- **Do not "fix" the above by taking `^0.17.0`.** It trades a defect this repo cannot reach for two
+  it can. First, `prefer-const` (above) — 35 errors, 7 unfixable, build-breaking. Second, npm
+  installs optional peer dependencies: `0.12.0` onward re-declares all five framework plugins as
+  peers with `peerDependenciesMeta.optional`, and npm 11.16.0 installs them regardless. Measured
+  in a bare consumer: `0.9.0` → 91 packages, no framework plugins; `0.17.0` → 316 packages, all
+  five present. So `^0.17.0` puts `eslint-plugin-react` and `@next/eslint-plugin-next` into this
+  Svelte-only repo's lint toolchain. Verify that with a clean-room install rather than
+  `npm view`, which strips both `frameworkPlugins` and `peerDependenciesMeta` from the packument
+  and will report them absent at every version.
 - **Credential boundary is a Worker, not a Next.js server.**
   [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
