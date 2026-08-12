@@ -60,6 +60,16 @@ const SETS = {
   prettier: {
     from: 'packages/prettier-config',
     files: ['index.js', 'svelte.js'],
+    // Upstream declares `"type": "module"` in its own package.json, which is not
+    // among the files vendored here. Without a marker these `.js` files inherit
+    // the module type of the nearest package.json — this repository's root —
+    // so `export default` is only valid because that root happens to be ESM for
+    // unrelated reasons. Removing that field is silent: every gate here still
+    // exits 0 on Node 24, which merely reparses and warns, while Node below
+    // 22.7 raises a SyntaxError inside Prettier with nothing pointing back to
+    // vendoring. Emit the marker so the vendored tree states its own module
+    // type instead of borrowing one.
+    esm: true,
   },
 };
 
@@ -253,11 +263,24 @@ async function main() {
   // report success.
   const staged = [];
   for (const name of names) {
-    const { from, files } = SETS[name];
+    const { from, files, esm } = SETS[name];
     for (const file of files) {
       const path = `${from}/${file}`;
       const text = await fetchFile(ref, path);
       staged.push({ name, path, file, text, dest: join(dest, name, file) });
+    }
+    if (esm) {
+      // Synthesized, not fetched: upstream's own package.json carries a name,
+      // version and peer ranges that would be false here. Only the module type
+      // transfers. It is staged like any other file so the lock hashes it and
+      // `--check` reports a hand-edit as drift.
+      staged.push({
+        name,
+        path: `(generated) ESM module marker for ${from}`,
+        file: 'package.json',
+        text: `${JSON.stringify({ type: 'module' }, null, 2)}\n`,
+        dest: join(dest, name, 'package.json'),
+      });
     }
   }
 
