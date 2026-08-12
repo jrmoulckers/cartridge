@@ -134,6 +134,54 @@ async function latestRef() {
 }
 
 /**
+ * Fetch one file without throwing. `fetchFile` is fatal by design because a
+ * vendor run that half-succeeds leaves a broken tree on disk. Staleness is the
+ * opposite: it is advisory, so a failure here has to be reportable as "unknown"
+ * rather than either killing the build or being swallowed into "fine".
+ */
+async function peek(ref, path) {
+  try {
+    const response = await fetch(`https://raw.githubusercontent.com/${REPO}/${ref}/${path}`);
+    if (!response.ok) return null;
+    const text = await response.text();
+    return text.trim() === '' ? null : text;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decide whether a newer ref would actually change anything in this tree.
+ *
+ * A tag comparison answers "did upstream publish?", which is not the question
+ * the reader has. Upstream cut 116 releases in one day and every file vendored
+ * here was byte-identical across the 52 of them spanning v0.63.0 to v0.115.0 —
+ * so a tag-keyed notice is a near-permanent fixture that says "act on this"
+ * when there is nothing to act on. A notice that is almost always wrong trains
+ * the reader to skip it, and it is then equally unread on the day it is right.
+ *
+ * Silence must mean "compared, nothing differs" and never "the comparison did
+ * not happen", so an unreachable file yields `unknown` and still speaks. The
+ * generated ESM marker has no upstream path and is excluded by construction;
+ * so is any file upstream added after this SETS was written, because SETS is
+ * hand-maintained here — that gap is a channel-parity question, not staleness,
+ * and the notice says so rather than implying the comparison was exhaustive.
+ */
+async function wouldChange(latest, lock) {
+  const tracked = Object.values(lock.files ?? {}).filter(
+    (m) => !m.source.startsWith('(generated)'),
+  );
+  const changed = [];
+  let unknown = 0;
+  for (const meta of tracked) {
+    const text = await peek(latest, meta.source);
+    if (text === null) unknown += 1;
+    else if (sha256(text) !== meta.sha256) changed.push(meta.source);
+  }
+  return { changed, unknown, compared: tracked.length };
+}
+
+/**
  * Verify the vendored tree still matches the lock, then report staleness.
  *
  * The split in severity is the whole point. Drift is a local integrity failure
@@ -176,11 +224,26 @@ async function check() {
   process.stdout.write(`${entries.length} vendored file(s) match ${LOCK} at ${lock.ref}.\n`);
 
   const latest = await latestRef();
-  if (latest && latest !== lock.ref) {
+  if (!latest || latest === lock.ref) return;
+
+  const { changed, unknown, compared } = await wouldChange(latest, lock);
+
+  if (changed.length > 0) {
     process.stdout.write(
-      `\nNotice: pinned at ${lock.ref}; newest release is ${latest}.\n` +
+      `\nNotice: pinned at ${lock.ref}; newest release is ${latest}, ` +
+        `and ${changed.length} of ${compared} vendored file(s) differ there:\n  ` +
+        `${changed.join('\n  ')}\n` +
         `This is not a failure. Update deliberately when you choose to:\n` +
         `  node scripts/vendor-configs.mjs ${latest}\n`,
+    );
+    return;
+  }
+
+  if (unknown > 0) {
+    process.stdout.write(
+      `\nNotice: pinned at ${lock.ref}; newest release is ${latest}. ` +
+        `${unknown} of ${compared} file(s) could not be read there, so whether ` +
+        `updating would change anything is UNKNOWN — this is not evidence either way.\n`,
     );
   }
 }
