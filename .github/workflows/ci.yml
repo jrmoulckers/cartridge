@@ -69,10 +69,15 @@ jobs:
       # A hand-edit to a generated file otherwise makes "vendored at ref X" a false claim.
       # Its drift-vs-staleness semantics are upstream's to define, not ours to restate here —
       # see docs/adopting.md in jrmoulckers/engineering.
+      # The offline variant is deliberate. Drift is what CI can act on and stays fatal;
+      # staleness is a decision for a human at a keyboard, and the lookup behind it is an
+      # unauthenticated call to a third party from a shared runner IP, where the 60/hour
+      # limit is most likely to be hit. The run states that it skipped the check, so a
+      # quiet gate is not mistaken for evidence that the pin is current.
       # `check:boundaries` proves the layering claims ARCHITECTURE.md makes — an invariant
       # nothing checks is only a comment. It runs before `lint` so a broken boundary is
       # reported as a boundary failure rather than buried in rule output.
-      lint-command: npm run vendor:check && npm run check:boundaries && npm run lint
+      lint-command: npm run vendor:check:offline && npm run check:boundaries && npm run lint
       format-check-command: npm run format:check
       semantic-pr-title: true
       registry-url: https://npm.pkg.github.com
