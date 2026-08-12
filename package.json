@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "vendor:check": "node scripts/vendor-configs.mjs --check",
+    "vendor:check:offline": "node scripts/vendor-configs.mjs --check --no-remote",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",

@@ -102,10 +102,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg === '--check') {
       flags.check = true;
+    } else if (arg === '--no-remote') {
+      flags.noRemote = true;
     } else if (arg.startsWith('--')) {
       fail(
         `unknown option ${arg}`,
-        'Usage: vendor-configs.mjs <ref> [--dest <dir>] [--set a,b] | vendor-configs.mjs --check',
+        'Usage: vendor-configs.mjs <ref> [--dest <dir>] [--set a,b] | vendor-configs.mjs --check [--no-remote]',
       );
     } else {
       positional.push(arg);
@@ -203,8 +205,16 @@ async function wouldChange(latest, lock) {
  * warns. Failing on staleness would make pinning automatic in effect: a red
  * build pressures the next person into bumping the ref without deciding to
  * accept the change, which is the property pinning exists to protect.
+ *
+ * These are also two unrelated operations behind one flag: an authoritative
+ * offline hash comparison, and a network call to a third party. `--no-remote`
+ * runs only the first, for gates under egress review or that should not reach
+ * the network at all. It states the gap rather than simply doing less, because
+ * a run that skipped the staleness check is otherwise indistinguishable from
+ * one that ran it and found nothing. The distinction the whole flag protects:
+ * a green --check means the tree matches the lock, not that the pin is current.
  */
-async function check() {
+async function check({ noRemote = false } = {}) {
   let lock;
   try {
     lock = JSON.parse(await readFile(LOCK, 'utf8'));
@@ -235,6 +245,14 @@ async function check() {
   }
 
   process.stdout.write(`${entries.length} vendored file(s) match ${LOCK} at ${lock.ref}.\n`);
+
+  if (noRemote) {
+    process.stdout.write(
+      `\nStaleness not checked (--no-remote). This says nothing about whether ` +
+        `${lock.ref} is current.\n`,
+    );
+    return;
+  }
 
   const latest = await latestRef();
   if (!latest) {
@@ -327,8 +345,11 @@ async function main() {
     if (positional.length > 0) {
       fail('--check takes no ref', 'It verifies the ref already recorded in the lock file.');
     }
-    await check();
+    await check({ noRemote: flags.noRemote === true });
     return;
+  }
+  if (flags.noRemote) {
+    fail('--no-remote only applies to --check', 'A vendor run must fetch to vendor anything.');
   }
   const ref = positional[0];
   if (!ref) {
