@@ -115,35 +115,56 @@ automation plus shared agent assets in
   into `config/engineering/` at a pinned ref by `scripts/vendor-configs.mjs`. `npm run
   vendor:check` verifies the vendored tree against `engineering-configs.lock.json` and fails on
   drift, so `ci.yml` passes it to `reusable-ci-lint` as
-  `lint-command: npm run vendor:check && npm run lint`. Both that input and
-  `format-check-command` carry real commands — the lint job no longer self-skips.
-- **`@jrmoulckers/eslint-config` is held below `0.11.0`, and the hold has a known cost.** The
-  range is `>=0.10.0 <0.11.0`, not the usual open `<1.0.0` ceiling. `0.11.0` makes
-  `typescript-eslint`'s `eslint-recommended` layer reach `.svelte` — previously it was scoped
-  to `**/*.ts`. That single change has two opposite effects, both measured here by resolving
-  the config for a `.svelte` and a `.ts` file:
+  `lint-command: npm run vendor:check:offline && npm run check:boundaries && npm run lint`. Both
+  that input and `format-check-command` carry real commands — the lint job no longer self-skips.
+  CI uses the `:offline` variant deliberately: drift is fatal and locally decidable, while the
+  staleness half makes an unauthenticated call to `api.github.com` from a shared runner IP, where
+  the 60-per-hour limit is most likely to be exhausted by traffic that is not ours. The offline
+  run states that it skipped that check rather than printing less, so a quiet gate is never
+  mistaken for evidence that the pin is current.
+- **`@jrmoulckers/eslint-config` is held below `0.11.0`, and the hold is now presumed permanent.**
+  The range is `>=0.10.0 <0.11.0`. For a `0.x` package that is exactly what `^0.10.0` means — the
+  caret admits patch only — so the two are interchangeable to npm and the explicit form is chosen
+  to carry intent that a caret cannot. A caret here would be indistinguishable from the default
+  npm writes when nobody has thought about it, which is the opposite of the case. Do not "tidy"
+  it into one.
 
-  | Rule in `.svelte` | `0.10.0` | `0.11.0` |
+  `0.11.0` makes `typescript-eslint`'s `eslint-recommended` layer reach `.svelte`; previously it
+  was scoped to `**/*.ts`. That single change has two opposite effects, measured by resolving the
+  config for a `.svelte` file on each release:
+
+  | Rule in `.svelte` | `0.10.0` | `0.11.0` – `0.17.0` |
   | --- | --- | --- |
   | `no-undef` | `error` — wrong | `off` — **fixed** |
   | `prefer-const` | absent — correct | `error` — **regression** |
+  | `svelte/prefer-const` | absent | **absent** — the missing fix |
 
   The regression is build-breaking, not merely noisy. ESLint cannot see writes made through a
   template `bind:` directive, so it reports a `let { … } = $props()` destructuring containing a
   `$bindable()` prop as never-reassigned; acting on that fails the Svelte compiler with
-  `Cannot bind to constant`. At `0.11.0` this repo reports 35 errors, all `prefer-const`, all
-  in `.svelte`, none in `.ts`.
+  `Cannot bind to constant`. Splitting the destructuring in two is not permitted by Svelte 5.
+  Every release from `0.11.0` through `0.17.0` reports the same 35 errors, all `prefer-const`,
+  all in `.svelte`, none in `.ts` — seven consecutive releases measured, not assumed.
 
-  The cost of holding: `no-undef` stays live in `<script lang="ts">`, where
-  `typescript-eslint` should have disabled it, and 20 of this repo's 21 components use
-  `lang="ts"`. It currently reports zero errors, so the defect is latent rather than active —
-  but it is reproducible, and fires on an ambient namespace (`let t: NodeJS.Timeout` yields
-  `'NodeJS' is not defined`), which is legitimate TypeScript. If you hit that, the code is
-  correct and the linter is wrong; do not rename around it.
+  The cost of holding: `no-undef` stays live in `<script lang="ts">`, where `typescript-eslint`
+  should have disabled it, and 20 of this repo's 21 components use `lang="ts"`. It currently
+  reports zero errors, so the defect is latent rather than active — but it is reproducible, and
+  fires on an ambient namespace (`let t: NodeJS.Timeout` yields `'NodeJS' is not defined`), which
+  is legitimate TypeScript. If you hit that, the code is correct and the linter is wrong; do not
+  rename around it.
 
-  Do not widen the ceiling and do not disable either rule locally — the fix belongs in
-  `jrmoulckers/engineering`, and is `0.11.0`'s scoping plus a `prefer-const` exemption for
-  `.svelte`. Re-evaluate on the release that carries both.
+  **The single condition that lifts this hold** is `eslint-plugin-svelte`'s `svelte/prefer-const`
+  being enabled for `.svelte` in the preset, in place of the base rule. That rule understands
+  `$bindable` and takes this repository from 35 errors to 0; it has been verified locally and
+  raised upstream repeatedly. It is unreachable while the preset's peer range still admits
+  `eslint-plugin-svelte@2`, which does not ship the rule. Until then, treat the ceiling as
+  permanent rather than provisional — a hold labelled "temporary" for seven releases reads as
+  work in progress and stops anyone re-examining it.
+
+  Do not widen the ceiling and do not disable either rule locally. Upstream peer declarations
+  have themselves moved twice within minors on this package — seven peers at `0.8.0`, two at
+  `0.9.0`, seven again at `0.16.0` — so a range wider than one minor admits genuinely breaking
+  change on a `0.x` dependency. Stranding fails safe; auto-upgrading does not.
 - **Credential boundary is a Worker, not a Next.js server.**
   [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
