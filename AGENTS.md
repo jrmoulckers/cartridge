@@ -161,10 +161,15 @@ automation plus shared agent assets in
   permanent rather than provisional — a hold labelled "temporary" for seven releases reads as
   work in progress and stops anyone re-examining it.
 
-  Do not widen the ceiling and do not disable either rule locally. Upstream peer declarations
-  have themselves moved twice within minors on this package — seven peers at `0.8.0`, two at
-  `0.9.0`, seven again at `0.16.0` — so a range wider than one minor admits genuinely breaking
-  change on a `0.x` dependency. Stranding fails safe; auto-upgrading does not.
+  Do not widen the ceiling and do not disable either rule locally. Widening was tried here
+  deliberately and is recorded so it is not retried blind: the range ran `^0.8.0` →
+  `>=0.8.0 <1.0.0` → `>=0.9.0 <1.0.0` → `>=0.10.0 <1.0.0` before being narrowed to its present
+  form when `0.11.0` broke the build. It was not a mistake at the time — it made `0.9.0`
+  reachable with no manifest edit, which was the point — but it stops working precisely when a
+  minor turns hostile, which on this package it did. Upstream peer declarations have themselves
+  moved twice within minors (seven peers at `0.8.0`, two at `0.9.0`, seven again at `0.16.0`), so
+  a range wider than one minor admits genuinely breaking change on a `0.x` dependency. Stranding
+  fails safe; auto-upgrading does not.
 - **Credential boundary is a Worker, not a Next.js server.**
   [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
