@@ -116,14 +116,27 @@ function parseArgs(argv) {
 
 /**
  * Report whether a newer release exists. Never throws and never fails the
- * caller: a tag pushed upstream must not turn an unrelated PR red. Returns null
- * when the answer cannot be determined, which is treated the same as "fine" —
- * an offline or rate-limited runner is not a staleness signal.
+ * caller: a tag pushed upstream must not turn an unrelated PR red.
+ *
+ * Returns null when the answer cannot be determined, and the caller must not
+ * treat that as "fine". The unauthenticated limit is 60 requests per hour per
+ * IP, which is not a CI edge case — it was exhausted twice in one day by one
+ * person verifying one change on one machine, and each time this returned null
+ * and the check went completely quiet. Silence that means "did not look"
+ * renders identically to silence that means "looked, nothing to do", so the
+ * caller says which one it got.
+ *
+ * A token is used when the environment already has one, purely to raise that
+ * limit. None is required, and none is ever written anywhere.
  */
 async function latestRef() {
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
   try {
     const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { accept: 'application/vnd.github+json' },
+      headers: {
+        accept: 'application/vnd.github+json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
     });
     if (!response.ok) return null;
     const body = await response.json();
@@ -224,7 +237,14 @@ async function check() {
   process.stdout.write(`${entries.length} vendored file(s) match ${LOCK} at ${lock.ref}.\n`);
 
   const latest = await latestRef();
-  if (!latest || latest === lock.ref) return;
+  if (!latest) {
+    process.stdout.write(
+      `\nNotice: could not resolve the newest release, so whether ${lock.ref} is ` +
+        `stale is UNKNOWN. Nothing was compared — this is not a clean bill of health.\n`,
+    );
+    return;
+  }
+  if (latest === lock.ref) return;
 
   const { changed, unknown, compared } = await wouldChange(latest, lock);
 
