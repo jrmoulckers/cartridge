@@ -1,0 +1,91 @@
+# =============================================================================
+# Dependabot version updates
+# =============================================================================
+#
+# Nothing automated dependency currency before this file existed, which is how the six
+# reusable-workflow SHA pins drifted ten commits without anyone noticing. The
+# `github-actions` entry is the direct fix for that class of drift.
+#
+# Commit-message prefixes are not cosmetic. CI runs a Conventional-Commits check on the
+# pull request title, and Dependabot derives that title from these prefixes, so a default
+# `Bump x from a to b` title would open every update pull request red.
+#
+# What this file cannot cover: `config/engineering/**` is vendored from
+# jrmoulckers/engineering at the ref recorded in `engineering-configs.lock.json`, and is
+# refreshed by `node scripts/vendor-configs.mjs <ref>`. That is neither a package manager
+# nor an action reference, so no Dependabot ecosystem watches it. `npm run vendor:check`
+# reports staleness against the pinned ref; acting on it stays a human decision.
+# =============================================================================
+version: 2
+
+updates:
+  # Covers every `uses:` reference in .github/workflows, including the reusable workflows
+  # called from the backbone by immutable SHA. `directory: /` is the documented value for
+  # this ecosystem — it means .github/workflows, not the repository root.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: ci
+      include: scope
+    # One pull request for the whole ecosystem. Action pins move together and are reviewed
+    # against a single upstream diff, so splitting them multiplies review with no new signal.
+    groups:
+      actions:
+        patterns:
+          - '*'
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    # Minor and patch travel together; majors stay unbatched so a breaking change is
+    # reviewed on its own rather than hidden inside a bulk bump.
+    groups:
+      npm-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Held below 0.11.0 deliberately and, on present evidence, permanently — see the
+      # measurements in AGENTS.md. Dependabot rewrites the manifest range rather than
+      # respecting it, so left unlisted it would propose exactly the upgrade that takes
+      # this repository from 0 lint errors to 35 unfixable ones.
+      - dependency-name: '@jrmoulckers/eslint-config'
+
+  # The bridge is a separate npm project with its own manifest and lockfile, so it needs its
+  # own entry; the root entry does not reach it.
+  - package-ecosystem: npm
+    directory: /bridge
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    groups:
+      bridge-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
