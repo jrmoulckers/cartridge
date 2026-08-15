@@ -1,0 +1,36 @@
+# =============================================================================
+# Caller permission lint
+# =============================================================================
+#
+# Deliberately its own workflow file rather than another job in ci.yml. A caller-level
+# `permissions:` block replaces the defaults instead of adding to them, and GitHub rejects
+# a caller whose ceiling omits a scope its callee declares — before it creates any job, any
+# check run, or any log. That rejection is whole-file, so a lint job living inside ci.yml
+# would be discarded along with everything else and could never report the one failure it
+# exists to catch. Only a separate file survives to name it.
+#
+# No `paths` or `paths-ignore` filter. This is meant to be a required check, and a workflow
+# that never starts produces no check run at all, which leaves the requirement pending
+# forever rather than reporting a terminal result.
+#
+# The pinned SHA below is load-bearing twice over: the job re-reads this file to recover it,
+# then checks out the scanner from that same immutable backbone revision. A green run is
+# evidence about this commit only — it says nothing about a later re-pin.
+# =============================================================================
+name: Caller permissions
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  caller-permissions:
+    name: Caller permission lint
+    permissions:
+      contents: read
+    uses: jrmoulckers/.github/.github/workflows/reusable-caller-permissions.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main

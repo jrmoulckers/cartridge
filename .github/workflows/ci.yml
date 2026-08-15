@@ -17,7 +17,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -35,7 +35,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
@@ -47,7 +47,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
@@ -61,7 +61,7 @@ jobs:
       contents: read
       packages: read
       pull-requests: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -91,22 +91,26 @@ jobs:
   security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main
     with:
       node-version: '22'
       package-manager: npm
-      # The repository does not expose Dependency Graph/GHAS dependency review.
-      run-dependency-review: false
+      run-dependency-review: true
 
   bridge-security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main
     with:
       node-version: '22'
       package-manager: npm
       working-directory: bridge
       run-secret-scan: false
+      # Dependency review stays off here, and not because it is unavailable — it runs in the
+      # `security` job above. The check is repository-scoped: it reads the pull request's
+      # dependency-graph diff through the API and takes no working directory, so the `bridge`
+      # value above does not narrow it. Enabling it here would run the identical check a second
+      # time under a second name, covering bridge/package-lock.json exactly as often as once.
       run-dependency-review: false
 
   bridge:
