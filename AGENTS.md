@@ -122,6 +122,24 @@ automation plus shared agent assets in
   the 60-per-hour limit is most likely to be exhausted by traffic that is not ours. The offline
   run states that it skipped that check rather than printing less, so a quiet gate is never
   mistaken for evidence that the pin is current.
+
+  **Vendoring those two is a deliberate bridge, not a fork of another authority's source**, and
+  it now survives for one reason only. Both blockers recorded on issue #41 are retired. The
+  install-bearing reusable workflows resolve the registry token as
+  `secrets.NODE_AUTH_TOKEN || github.token` as of upstream `f1457271`, which is an ancestor of
+  the `989301fd` pin this repo calls, so a scoped install no longer 401s — and
+  `@jrmoulckers/eslint-config` installing green under `registry-url` / `registry-scope` proves
+  that path works end to end rather than in theory. The ERESOLVE is gone too:
+  `@jrmoulckers/tsconfig` already declares `typescript: ^5.5.0 || ^6.0.0 || ^7.0.0` at the
+  pinned `v0.118.0`, which admits this repo's `~6.0.2`. What survives is narrower, and is stated
+  at length in `scripts/vendor-configs.mjs`: GitHub Packages authenticates *every* read,
+  including a read of a public package, so installing these two would put a token in front of
+  `npm install` for every contributor and self-hoster. **The condition that retires the
+  vendoring is a token-free read** — engineering publishing these two to a registry that allows
+  anonymous reads, or the studio sync engine gaining a transport for them, as it already has for
+  `packages/tokens/dist`. Neither has happened. Until one does, refresh with
+  `node scripts/vendor-configs.mjs <newer-ref>` and review the resulting diff; never hand-edit
+  anything under `config/engineering/`.
 - **`@jrmoulckers/eslint-config` is held below `0.11.0`, and the hold is now presumed permanent.**
   The range is `>=0.10.0 <0.11.0`. For a `0.x` package that is exactly what `^0.10.0` means — the
   caret admits patch only — so the two are interchangeable to npm and the explicit form is chosen
