@@ -195,18 +195,18 @@ automation plus shared agent assets in
   `npm view`, which strips both `frameworkPlugins` and `peerDependenciesMeta` from the packument
   and will report them absent at every version.
 - **Credential boundary is a Worker, not a Next.js server.**
-  [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
+  [`ENG-API-003` (Server-enforced authorization)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
   default-deny decisions") and
-  [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
-  / [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+  [`ENG-SEC-001` (Secret lifecycle)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+  / [`ENG-SEC-004` (Least authority)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
   require third-party credentials to sit behind a first-party server. Of the four
   platforms, only Steam has an official public API (server-side key); Xbox is partner-gated,
   PlayStation is a reverse-engineered NPSSO flow and Nintendo has no API at all — so every
   path is either a server-held key or a long-lived per-user secret. Cartridge satisfies that
   with a local-first Svelte PWA plus the `bridge/` Cloudflare Worker as the sole secret
   holder, rather than the Next.js server tier used by `jrm-recipes`.
-  [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+  [`ENG-WEB-001` (Browser trust seam)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
   ("treat browser code, rendered input, and client-visible configuration as an untrusted
   seam") still binds: no secret ever reaches `src/`.
 
