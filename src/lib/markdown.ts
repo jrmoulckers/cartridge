@@ -57,6 +57,9 @@ function renderInline(escaped: string): string {
   // Two trailing spaces = hard break.
   text = text.replace(/ {2,}\n/g, '<br />\n');
 
+  // The NUL sentinel is deliberate: code spans are lifted out before inline rules run and
+  // restored here. NUL cannot survive escapeHtml's input, so it can never come from a user.
+  // eslint-disable-next-line no-control-regex
   return text.replace(/\u0000(\d+)\u0000/g, (_m, index: string) => `<code>${codes[+index]}</code>`);
 }
 
@@ -119,9 +122,10 @@ export function renderMarkdown(source: string): string {
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
       flushAll();
+      const [, hashes = '', title = ''] = heading;
       // Clamp to h2–h4: a review body must not outrank the page's own headings.
-      const level = Math.min(4, Math.max(2, heading[1].length + 1));
-      out.push(`<h${level}>${renderInline(heading[2].trim())}</h${level}>`);
+      const level = Math.min(4, Math.max(2, hashes.length + 1));
+      out.push(`<h${level}>${renderInline(title.trim())}</h${level}>`);
       continue;
     }
 
@@ -135,7 +139,7 @@ export function renderMarkdown(source: string): string {
     if (quoted) {
       flushParagraph();
       flushList();
-      quote.push(quoted[1]);
+      quote.push(quoted[1] ?? '');
       continue;
     }
     flushQuote();
@@ -150,7 +154,7 @@ export function renderMarkdown(source: string): string {
         out.push(`<${wanted}>`);
         listType = wanted;
       }
-      out.push(`<li>${renderInline((bullet ?? ordered)![1])}</li>`);
+      out.push(`<li>${renderInline((bullet ?? ordered)?.[1] ?? '')}</li>`);
       continue;
     }
     flushList();

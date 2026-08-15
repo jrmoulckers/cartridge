@@ -24,9 +24,8 @@
         <span class="empty">★</span>
         <span
           class="fill"
-          style="--fill: {value == null
-            ? 0
-            : Math.min(1, Math.max(0, value - (i - 1))) * 100}%">★</span
+          style="--fill: {value == null ? 0 : Math.min(1, Math.max(0, value - (i - 1))) * 100}%"
+          >★</span
         >
       </span>
     {/each}

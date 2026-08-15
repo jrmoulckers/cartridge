@@ -105,26 +105,126 @@ automation plus shared agent assets in
 
 ## Deviations from the shared principles
 
-- **No shared lint/format presets.** `@jrm/eslint-config`, `@jrm/prettier-config`,
-  `@jrm/tsconfig` and `@jrm/tailwind-preset` have no transport to member repos — the sync
-  engine vendors `packages/tokens/dist` only, and nothing is published to a registry (see
-  studio's README transport table). Cartridge therefore carries no ESLint/Prettier yet, so
-  `ci.yml` calls `reusable-ci-lint` with `lint-command` and `format-check-command` set to
-  empty strings — its lint job self-skips and only the semantic-PR-title check runs. Give
-  those two inputs real commands once the repo has lint/format scripts.
+- **Shared lint/format presets come from `jrmoulckers/engineering`, not `jrmoulckers/studio`.** The
+  `@jrm/*` presets named in studio's README transport table (`@jrm/eslint-config`,
+  `@jrm/prettier-config`, `@jrm/tsconfig`, `@jrm/tailwind-preset`) still have no transport — the
+  sync engine vendors `packages/tokens/dist` only. Cartridge instead consumes the
+  `@jrmoulckers/*` presets over the two channels defined in engineering's ADR-0001:
+  `@jrmoulckers/eslint-config` from GitHub Packages (a `devDependency`, so `npm ci --omit=dev`
+  never needs a token), and `@jrmoulckers/tsconfig` / `@jrmoulckers/prettier-config` vendored
+  into `config/engineering/` at a pinned ref by `scripts/vendor-configs.mjs`. `npm run
+  vendor:check` verifies the vendored tree against `engineering-configs.lock.json` and fails on
+  drift, so `ci.yml` passes it to `reusable-ci-lint` as
+  `lint-command: npm run vendor:check:offline && npm run check:boundaries && npm run lint`. Both
+  that input and `format-check-command` carry real commands — the lint job no longer self-skips.
+  CI uses the `:offline` variant deliberately: drift is fatal and locally decidable, while the
+  staleness half makes an unauthenticated call to `api.github.com` from a shared runner IP, where
+  the 60-per-hour limit is most likely to be exhausted by traffic that is not ours. The offline
+  run states that it skipped that check rather than printing less, so a quiet gate is never
+  mistaken for evidence that the pin is current.
+
+  **Vendoring those two is a deliberate bridge, not a fork of another authority's source**, and
+  it now survives for one reason only. Both blockers recorded on issue #41 are retired. The
+  install-bearing reusable workflows resolve the registry token as
+  `secrets.NODE_AUTH_TOKEN || github.token` as of upstream `f1457271`, which is an ancestor of
+  the `989301fd` pin this repo calls, so a scoped install no longer 401s — and
+  `@jrmoulckers/eslint-config` installing green under `registry-url` / `registry-scope` proves
+  that path works end to end rather than in theory. The ERESOLVE is gone too:
+  `@jrmoulckers/tsconfig` already declares `typescript: ^5.5.0 || ^6.0.0 || ^7.0.0` at the
+  pinned `v0.118.0`, which admits this repo's `~6.0.2`. What survives is narrower, and is stated
+  at length in `scripts/vendor-configs.mjs`: GitHub Packages authenticates *every* read,
+  including a read of a public package, so installing these two would put a token in front of
+  `npm install` for every contributor and self-hoster. **The condition that retires the
+  vendoring is a token-free read** — engineering publishing these two to a registry that allows
+  anonymous reads, or the studio sync engine gaining a transport for them, as it already has for
+  `packages/tokens/dist`. Neither has happened. Until one does, refresh with
+  `node scripts/vendor-configs.mjs <newer-ref>` and review the resulting diff; never hand-edit
+  anything under `config/engineering/`.
+- **`@jrmoulckers/eslint-config` is held below `0.11.0`, and the hold is now presumed permanent.**
+  The range is `>=0.10.0 <0.11.0`. For a `0.x` package that is exactly what `^0.10.0` means — the
+  caret admits patch only — so the two are interchangeable to npm and the explicit form is chosen
+  to carry intent that a caret cannot. A caret here would be indistinguishable from the default
+  npm writes when nobody has thought about it, which is the opposite of the case. Do not "tidy"
+  it into one.
+
+  `0.11.0` makes `typescript-eslint`'s `eslint-recommended` layer reach `.svelte`; previously it
+  was scoped to `**/*.ts`. That single change has two opposite effects, measured by resolving the
+  config for a `.svelte` file on each release:
+
+  | Rule in `.svelte` | `0.10.0` | `0.11.0` – `0.17.0` |
+  | --- | --- | --- |
+  | `no-undef` | `error` — wrong | `off` — **fixed** |
+  | `prefer-const` | absent — correct | `error` — **regression** |
+  | `svelte/prefer-const` | absent | **absent** — the missing fix |
+
+  The regression is build-breaking, not merely noisy. ESLint cannot see writes made through a
+  template `bind:` directive, so it reports a `let { … } = $props()` destructuring containing a
+  `$bindable()` prop as never-reassigned; acting on that fails the Svelte compiler with
+  `Cannot bind to constant`. Splitting the destructuring in two is not permitted by Svelte 5.
+  Every release from `0.11.0` through `0.17.0` reports the same 35 errors, all `prefer-const`,
+  all in `.svelte`, none in `.ts` — seven consecutive releases measured, not assumed.
+
+  The cost of holding: `no-undef` stays live in `<script lang="ts">`, where `typescript-eslint`
+  should have disabled it, and 20 of this repo's 21 components use `lang="ts"`. It currently
+  reports zero errors, so the defect is latent rather than active — but it is reproducible, and
+  fires on an ambient namespace (`let t: NodeJS.Timeout` yields `'NodeJS' is not defined`), which
+  is legitimate TypeScript. If you hit that, the code is correct and the linter is wrong; do not
+  rename around it.
+
+  **The single condition that lifts this hold** is `eslint-plugin-svelte`'s `svelte/prefer-const`
+  being enabled for `.svelte` in the preset, in place of the base rule. That rule understands
+  `$bindable` and takes this repository from 35 errors to 0; it has been verified locally and
+  raised upstream repeatedly. **The blocker is the preset's rule selection, not its peer range** —
+  an earlier revision of this note claimed the fix was unreachable while the peer range admitted
+  `eslint-plugin-svelte@2`, and that was wrong. Measured directly at `eslint-config@0.17.0`:
+  installing `eslint-plugin-svelte@3.22.0` makes `svelte/prefer-const` exist
+  (`'prefer-const' in plugin.rules === true`), and the resolved config for a `.svelte` file still
+  reports base `prefer-const` at `error` with `svelte/prefer-const` **absent** — 35 errors,
+  unchanged. So no action available here lifts it; the preset must enable the rule. Until then,
+  treat the ceiling as
+  permanent rather than provisional — a hold labelled "temporary" for seven releases reads as
+  work in progress and stops anyone re-examining it.
+
+  Do not widen the ceiling and do not disable either rule locally. Widening was tried here
+  deliberately and is recorded so it is not retried blind: the range ran `^0.8.0` →
+  `>=0.8.0 <1.0.0` → `>=0.9.0 <1.0.0` → `>=0.10.0 <1.0.0` before being narrowed to its present
+  form when `0.11.0` broke the build. It was not a mistake at the time — it made `0.9.0`
+  reachable with no manifest edit, which was the point — but it stops working precisely when a
+  minor turns hostile, which on this package it did. Upstream peer declarations have themselves
+  moved twice within minors (seven peers at `0.8.0`, two at `0.9.0`, seven again at `0.12.0`), so
+  a range wider than one minor admits genuinely breaking change on a `0.x` dependency. Stranding
+  fails safe; auto-upgrading does not.
+- **`0.9.0`–`0.11.0` carry an upstream defect that does not reach this repo, and `0.10.0` is held
+  deliberately in spite of it.** In that window the five framework plugins were moved out of
+  `peerDependencies` into a bespoke `frameworkPlugins` key that no package manager reads, while
+  `react.js` and `next.js` still import them at module scope. Measured at `0.10.0`: `./react` and
+  `./next` fail to load with `ERR_MODULE_NOT_FOUND`, while `./svelte` and `./base` load cleanly.
+  Cartridge imports `svelteConfig()` from `./svelte` and nothing else, so the broken subpaths are
+  unreachable here — `lint` exits 0 and every gate passes. What makes `./svelte` work is that this
+  repo declares `eslint-plugin-svelte` itself; at `0.10.0` nothing upstream would install it.
+  Keep that declaration — it is load-bearing, not redundant.
+- **Do not "fix" the above by taking `^0.17.0`.** It trades a defect this repo cannot reach for two
+  it can. First, `prefer-const` (above) — 35 errors, 7 unfixable, build-breaking. Second, npm
+  installs optional peer dependencies: `0.12.0` onward re-declares all five framework plugins as
+  peers with `peerDependenciesMeta.optional`, and npm 11.16.0 installs them regardless. Measured
+  in a bare consumer: `0.9.0` → 91 packages, no framework plugins; `0.17.0` → 316 packages, all
+  five present. So `^0.17.0` puts `eslint-plugin-react` and `@next/eslint-plugin-next` into this
+  Svelte-only repo's lint toolchain. Verify that with a clean-room install rather than
+  `npm view`, which strips both `frameworkPlugins` and `peerDependenciesMeta` from the packument
+  and will report them absent at every version.
 - **Credential boundary is a Worker, not a Next.js server.**
-  [`ENG-API-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
+  [`ENG-API-003` (Server-enforced authorization)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/api-backend.md)
   ("source secrets outside code and enforce authentication and authorization server-side with
   default-deny decisions") and
-  [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
-  / [`ENG-SEC-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+  [`ENG-SEC-001` (Secret lifecycle)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+  / [`ENG-SEC-004` (Least authority)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
   require third-party credentials to sit behind a first-party server. Of the four
   platforms, only Steam has an official public API (server-side key); Xbox is partner-gated,
   PlayStation is a reverse-engineered NPSSO flow and Nintendo has no API at all — so every
   path is either a server-held key or a long-lived per-user secret. Cartridge satisfies that
   with a local-first Svelte PWA plus the `bridge/` Cloudflare Worker as the sole secret
   holder, rather than the Next.js server tier used by `jrm-recipes`.
-  [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+  [`ENG-WEB-001` (Browser trust seam)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
   ("treat browser code, rendered input, and client-visible configuration as an untrusted
   seam") still binds: no secret ever reaches `src/`.
 

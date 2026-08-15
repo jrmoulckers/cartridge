@@ -4,3 +4,9 @@
 # Git's automatic text detection leaves binary files byte-for-byte unchanged.
 * text=auto eol=lf
 # studio:base:end
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.woff2 binary

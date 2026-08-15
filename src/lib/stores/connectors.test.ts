@@ -34,7 +34,11 @@ function link(gameId: string, extra: Partial<PlatformLink> = {}): PlatformLink {
   };
 }
 
-const connected: Connection = { platform: 'steam', connectedAt: Date.now(), account: '7'.repeat(17) };
+const connected: Connection = {
+  platform: 'steam',
+  connectedAt: Date.now(),
+  account: '7'.repeat(17),
+};
 
 beforeEach(() => {
   links.set([]);
@@ -81,11 +85,7 @@ describe('needsReconnect', () => {
   });
 
   it('names each platform once, however many games are linked', () => {
-    links.set([
-      link('a'),
-      link('b'),
-      link('c', { platform: 'xbox', id: 'l-c-xbox' }),
-    ]);
+    links.set([link('a'), link('b'), link('c', { platform: 'xbox', id: 'l-c-xbox' })]);
     expect(get(needsReconnect).sort()).toEqual(['steam', 'xbox']);
   });
 });

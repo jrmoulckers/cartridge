@@ -52,9 +52,7 @@ export function loginUrl(returnTo: string, realm: string): string {
   return `${OPENID_ENDPOINT}?${params}`;
 }
 
-export type VerifyResult =
-  | { ok: true; steamId: string }
-  | { ok: false; reason: string };
+export type VerifyResult = { ok: true; steamId: string } | { ok: false; reason: string };
 
 /**
  * Verify an OpenID assertion **with Steam**, not by reading it.
@@ -262,7 +260,7 @@ async function getSchemaTotal(env: Env, appid: string): Promise<number | null> {
   const cached = await readCache<{ total: number | null }>(env, key);
   if (cached) return cached.total;
 
-  let total: number | null = null;
+  let total: number | null;
   try {
     const data = await call<{
       game?: { availableGameStats?: { achievements?: unknown[] } };

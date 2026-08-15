@@ -39,26 +39,29 @@ function totalMinutes(rows: SessionStat[]): number | null {
  * Games joined with the user's relationship to them. A game with no entry is not in the
  * library yet (it is only cached metadata) and is deliberately excluded.
  */
-export const library = derived([games, entries, links, stats], ([$games, $entries, $links, $stats]) => {
-  const byGame = new Map<ID, Game>($games.map((g) => [g.id, g] as const));
-  const linksByGame = groupBy($links, (l) => l.gameId);
-  const statsByGame = groupBy($stats, (s) => s.gameId);
+export const library = derived(
+  [games, entries, links, stats],
+  ([$games, $entries, $links, $stats]) => {
+    const byGame = new Map<ID, Game>($games.map((g) => [g.id, g] as const));
+    const linksByGame = groupBy($links, (l) => l.gameId);
+    const statsByGame = groupBy($stats, (s) => s.gameId);
 
-  const items: LibraryItem[] = [];
-  for (const entry of $entries) {
-    const game = byGame.get(entry.gameId);
-    if (!game) continue;
-    const gameStats = statsByGame.get(entry.gameId) ?? [];
-    items.push({
-      game,
-      entry,
-      links: linksByGame.get(entry.gameId) ?? [],
-      stats: gameStats,
-      totalMinutes: totalMinutes(gameStats),
-    });
-  }
-  return items;
-});
+    const items: LibraryItem[] = [];
+    for (const entry of $entries) {
+      const game = byGame.get(entry.gameId);
+      if (!game) continue;
+      const gameStats = statsByGame.get(entry.gameId) ?? [];
+      items.push({
+        game,
+        entry,
+        links: linksByGame.get(entry.gameId) ?? [],
+        stats: gameStats,
+        totalMinutes: totalMinutes(gameStats),
+      });
+    }
+    return items;
+  },
+);
 
 /** Count per status — the shelf tab badges. */
 export const statusCounts = derived(library, ($library) => {

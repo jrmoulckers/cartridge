@@ -36,7 +36,9 @@ describe('triage', () => {
 
   it('only considers the backlog — a wishlist game is not owned, and a played one is done', () => {
     expect(triage.total).toBe(4);
-    const ids = [...triage.neverLaunched, ...triage.unknown, ...triage.started].map((i) => i.game.id);
+    const ids = [...triage.neverLaunched, ...triage.unknown, ...triage.started].map(
+      (i) => i.game.id,
+    );
     expect(ids).not.toContain('wishlist');
     expect(ids).not.toContain('played');
   });
@@ -44,8 +46,20 @@ describe('triage', () => {
 
 describe('sorting on real signals only', () => {
   const waiting = [
-    item({ id: 'old', status: 'backlog', createdAt: local(2019), releasedAt: local(2015), title: 'Zed' }),
-    item({ id: 'new', status: 'backlog', createdAt: local(2026), releasedAt: local(2024), title: 'Alpha' }),
+    item({
+      id: 'old',
+      status: 'backlog',
+      createdAt: local(2019),
+      releasedAt: local(2015),
+      title: 'Zed',
+    }),
+    item({
+      id: 'new',
+      status: 'backlog',
+      createdAt: local(2026),
+      releasedAt: local(2024),
+      title: 'Alpha',
+    }),
     item({ id: 'undated', status: 'backlog', createdAt: local(2022), title: 'Middle' }),
   ];
 

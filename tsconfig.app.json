@@ -1,14 +1,11 @@
 {
-  "extends": "@tsconfig/svelte/tsconfig.json",
+  "extends": "./config/engineering/tsconfig/vite-app.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "target": "es2023",
-    "module": "esnext",
+    /* Svelte's ambient types, and `.svelte` imports are checked by svelte-check
+       rather than tsc, so plain JS in the app is not type-checked here. */
     "types": ["svelte", "vite/client"],
-    "noEmit": true,
-    "allowJs": true,
     "checkJs": false,
-    "moduleDetection": "force",
     "paths": {
       "@jrm/tokens/*": ["./vendor/@jrm/tokens/*"]
     }

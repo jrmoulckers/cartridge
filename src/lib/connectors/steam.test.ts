@@ -63,6 +63,9 @@ describe('isSteamId', () => {
     expect(isSteamId('76561197960287930')).toBe(true);
     expect(isSteamId('7656119796028793')).toBe(false);
     expect(isSteamId('not-an-id')).toBe(false);
+    // A number, not a string — the point of the assertion. The literal's precision loss is
+    // irrelevant to a check that rejects every non-string.
+    // eslint-disable-next-line no-loss-of-precision
     expect(isSteamId(76561197960287930)).toBe(false);
     expect(isSteamId(undefined)).toBe(false);
   });
@@ -116,14 +119,14 @@ describe('fetchLibrary', () => {
       },
     ]);
 
-    const url = String(fetchMock.mock.calls[0][0]);
+    const url = String(fetchMock.mock.calls[0]![0]!);
     expect(url).toBe(`${BRIDGE}/steam/library?steamid=76561197960287930`);
   });
 
   it('sends no cookies or credentials with the request', async () => {
     fetchMock.mockResolvedValue(reply({ games: [] }));
     await steamConnector.fetchLibrary({ credentials });
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: 'omit', mode: 'cors' });
+    expect(fetchMock.mock.calls[0]![1]!).toMatchObject({ credentials: 'omit', mode: 'cors' });
   });
 
   it('keeps a real zero and never invents one', async () => {
@@ -138,18 +141,20 @@ describe('fetchLibrary', () => {
     );
 
     const page = await steamConnector.fetchLibrary({ credentials });
-    expect(page.items[0].minutesPlayed).toBe(0);
-    expect(page.items[1].minutesPlayed).toBeNull();
+    expect(page.items[0]!.minutesPlayed).toBe(0);
+    expect(page.items[1]!.minutesPlayed).toBeNull();
     // A number we can't read becomes null, not a guess.
-    expect(page.items[2].minutesPlayed).toBeNull();
+    expect(page.items[2]!.minutesPlayed).toBeNull();
   });
 
   it('drops a never-played timestamp rather than reporting 1970', async () => {
     fetchMock.mockResolvedValue(
-      reply({ games: [{ appid: '1', title: 'Never launched', minutesPlayed: 0, lastPlayedAt: 0 }] }),
+      reply({
+        games: [{ appid: '1', title: 'Never launched', minutesPlayed: 0, lastPlayedAt: 0 }],
+      }),
     );
     const page = await steamConnector.fetchLibrary({ credentials });
-    expect(page.items[0].lastPlayedAt).toBeUndefined();
+    expect(page.items[0]!.lastPlayedAt).toBeUndefined();
   });
 
   it('refuses to run without a credential, as an auth error', async () => {
@@ -183,7 +188,10 @@ describe('failing well', () => {
 
   it('carries Steam’s retry window through a rate limit', async () => {
     fetchMock.mockResolvedValue(
-      reply({ error: 'upstream', message: 'Slow down.' }, { status: 429, headers: { 'retry-after': '90' } }),
+      reply(
+        { error: 'upstream', message: 'Slow down.' },
+        { status: 429, headers: { 'retry-after': '90' } },
+      ),
     );
 
     const error = await steamConnector.fetchLibrary({ credentials }).catch((e) => e);
@@ -198,9 +206,7 @@ describe('failing well', () => {
   });
 
   it('says something useful when the bridge has no Steam key', async () => {
-    fetchMock.mockResolvedValue(
-      reply({ error: 'upstream', message: 'no key' }, { status: 503 }),
-    );
+    fetchMock.mockResolvedValue(reply({ error: 'upstream', message: 'no key' }, { status: 503 }));
     const error = await steamConnector.fetchLibrary({ credentials }).catch((e) => e);
     expect(error.kind).toBe('unsupported');
     expect(error.message).toMatch(/no Steam key/i);
@@ -224,7 +230,7 @@ describe('fetchRecent', () => {
   it('asks the recent endpoint, not the whole library', async () => {
     fetchMock.mockResolvedValue(reply({ games: [] }));
     await steamConnector.fetchRecent({ credentials });
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/steam/recent');
+    expect(String(fetchMock.mock.calls[0]![0]!)).toContain('/steam/recent');
   });
 });
 
@@ -245,14 +251,16 @@ describe('fetchAchievements', () => {
       externalIds: ['1145360', '400'],
     });
 
-    expect(page.items).toEqual([{ externalId: '1145360', achievements: { earned: 30, total: 49 } }]);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('appids=1145360,400');
+    expect(page.items).toEqual([
+      { externalId: '1145360', achievements: { earned: 30, total: 49 } },
+    ]);
+    expect(String(fetchMock.mock.calls[0]![0]!)).toContain('appids=1145360,400');
   });
 
   it('accepts a single id too', async () => {
     fetchMock.mockResolvedValue(reply({ results: [] }));
     await steamConnector.fetchAchievements({ credentials, externalId: '1145360' });
-    expect(String(fetchMock.mock.calls[0][0])).toContain('appids=1145360');
+    expect(String(fetchMock.mock.calls[0]![0]!)).toContain('appids=1145360');
   });
 
   it('returns an empty page rather than fetching the world when given no ids', async () => {
@@ -266,7 +274,7 @@ describe('fetchAchievements', () => {
     const many = Array.from({ length: 60 }, (_, i) => String(i + 1));
     await steamConnector.fetchAchievements({ credentials, externalIds: many });
 
-    const appids = new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('appids');
+    const appids = new URL(String(fetchMock.mock.calls[0]![0]!)).searchParams.get('appids');
     expect(appids!.split(',')).toHaveLength(20);
   });
 

@@ -15,14 +15,14 @@ library in from Steam, Xbox, PlayStation and Nintendo — but it does not need t
 Someone with a games library scattered across four storefronts and twenty years, who wants
 one place that answers:
 
-- *What am I in the middle of?*
-- *What did I think of that game I finished in 2019?*
-- *What should I play next, out of the 300 things I already own?*
+- _What am I in the middle of?_
+- _What did I think of that game I finished in 2019?_
+- _What should I play next, out of the 300 things I already own?_
 
 ## The promise
 
-*Satisfies `PROD-STRAT-001` — the target user value and the trust constraints that outrank
-adoption or novelty, for the three sections above.*
+_Satisfies `PROD-STRAT-001` — the target user value and the trust constraints that outrank
+adoption or novelty, for the three sections above._
 
 **Your library is yours, it lives on your device, and it works with nothing connected.**
 
@@ -32,25 +32,25 @@ metadata lookup are conveniences layered on top of a complete app, never load-be
 
 ## Core concepts
 
-| Concept | What it means |
-| --- | --- |
-| **Game** | The canonical record for a title: cover, genres, release date, developer. Authored by you or filled in from IGDB. |
-| **Entry** | *Your* relationship to a game: shelf, rating, review, notes, dates, tags. One per game, whatever platforms you own it on. |
-| **Shelf** | Where a game sits. Five built-ins — Playing, Backlog, Played, Wishlist, Abandoned — plus any number of your own. |
-| **Platform link** | The id a storefront uses for a game, so a connector knows your "Hades" and Steam's "Hades™" are the same thing. |
-| **Session stat** | Playtime, last-played and achievements, as reported by a platform. Never authored by hand. |
+| Concept           | What it means                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Game**          | The canonical record for a title: cover, genres, release date, developer. Authored by you or filled in from IGDB.         |
+| **Entry**         | _Your_ relationship to a game: shelf, rating, review, notes, dates, tags. One per game, whatever platforms you own it on. |
+| **Shelf**         | Where a game sits. Five built-ins — Playing, Backlog, Played, Wishlist, Abandoned — plus any number of your own.          |
+| **Platform link** | The id a storefront uses for a game, so a connector knows your "Hades" and Steam's "Hades™" are the same thing.           |
+| **Session stat**  | Playtime, last-played and achievements, as reported by a platform. Never authored by hand.                                |
 
 ### One entry, many platforms
 
-Owning a game on Steam *and* Xbox gives you **one** entry with two platform links and
+Owning a game on Steam _and_ Xbox gives you **one** entry with two platform links and
 merged stats — not two rows to rate separately. Your opinion of a game is about the game,
 not the storefront. As of phase 4 this is a tested property rather than an intention: see
 `src/lib/connectors/cross-platform.test.ts`.
 
 ### Playtime you don't have is not zero
 
-*Satisfies `PROD-MET-003` — unknown and none are different facts, and a number may not claim
-more than the data supports.*
+_Satisfies `PROD-MET-003` — unknown and none are different facts, and a number may not claim
+more than the data supports._
 
 PlayStation does not report playtime. Cartridge stores that as `null` and renders it as
 "Not reported". Writing `0h` would be a small lie that quietly poisons every statistic
@@ -94,8 +94,8 @@ patched.
 
 ## Anti-references
 
-*Satisfies `PROD-STRAT-001` — the rejected options and the trust constraints that ruled them
-out.*
+_Satisfies `PROD-STRAT-001` — the rejected options and the trust constraints that ruled them
+out._
 
 Cartridge is deliberately **not**:
 
@@ -107,9 +107,9 @@ Cartridge is deliberately **not**:
 
 ## Stats, and what a number is allowed to claim
 
-*Satisfies `PROD-MET-001` (one owned definition per metric, stating its population, window
+_Satisfies `PROD-MET-001` (one owned definition per metric, stating its population, window
 and exclusions) and `PROD-MET-003` (report coverage, limitations and what the number cannot
-claim) — for this section and the two that follow.*
+claim) — for this section and the two that follow._
 
 Cartridge's data is structurally incomplete by design, so the stats screens are built around
 one rule: **every number carries the share of the library it could actually see.** "412 hours"
@@ -126,13 +126,13 @@ that follows from that is stated on the page rather than hidden:
 - **A game with no dates belongs to no year.** It is counted and named, never quietly
   dropped — and never back-filled from the day it was imported, which is a fact about an
   import rather than about playing a game.
-- **Last-played is *last*, not *every*.** Play something again next year and it moves with
+- **Last-played is _last_, not _every_.** Play something again next year and it moves with
   you, leaving the year before.
-- **Hours played *in* a year cannot be computed, so they are never claimed.** Steam and Xbox
+- **Hours played _in_ a year cannot be computed, so they are never claimed.** Steam and Xbox
   report how long you have played a game in total, never when. The year page reports the
   lifetime playtime behind the games your year touched, labelled exactly that.
 - **"Rated in 2026" is not a thing either.** A rating carries no timestamp of its own, so the
-  page talks about your ratings *of* the year's games and makes no claim about when you gave
+  page talks about your ratings _of_ the year's games and makes no claim about when you gave
   them.
 
 ### What Cartridge deliberately won't tell you
@@ -152,17 +152,17 @@ useful than the shelf it summarises.
 
 ## Scope by phase
 
-*Satisfies `PROD-STRAT-003` (milestones are coherent outcomes that stay valuable without any
+_Satisfies `PROD-STRAT-003` (milestones are coherent outcomes that stay valuable without any
 one platform or vendor) and `PROD-PLAN-001` (each phase is an independently shippable slice —
-phase 7 shipped ahead of 5 and 6 precisely because it did not depend on them).*
+phase 7 shipped ahead of 5 and 6 precisely because it did not depend on them)._
 
-| Phase | What lands |
-| --- | --- |
-| **1 — local core** ✅ | Shelves, manual entry, ratings, Markdown reviews and notes, dates, replays, tags, search and filter, JSON backup/restore, full offline operation. |
-| **2 — the bridge** ✅ | Cloudflare Worker with IGDB search and metadata, KV-cached. Real covers, genres, release dates. The connector interface, with no connectors. |
-| **3 — Steam** ✅ | The first connector: Steam sign-in via OpenID, owned games, playtime, achievements, and a review step before anything is written. |
-| **4 — Xbox** ✅ | The second connector, via the unofficial OpenXBL. Title history, last-played, achievements, batched playtime. Title-based IGDB matching that refuses to guess, with the unmatched tail listed for review. |
-| 5 — PlayStation | PSN library and trophies (no playtime — see above). |
-| 6 — Nintendo | Nintendo, within whatever the platform actually permits. |
-| **7 — stats** ✅ | Pulled forward ahead of PlayStation and Nintendo. Stats page, year in review, backlog triage — every figure carrying the share of the library it could see, computed locally with no bridge involvement. |
-| 8 — import/export | CSV import from other trackers, richer export formats. |
+| Phase                 | What lands                                                                                                                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 — local core** ✅ | Shelves, manual entry, ratings, Markdown reviews and notes, dates, replays, tags, search and filter, JSON backup/restore, full offline operation.                                                         |
+| **2 — the bridge** ✅ | Cloudflare Worker with IGDB search and metadata, KV-cached. Real covers, genres, release dates. The connector interface, with no connectors.                                                              |
+| **3 — Steam** ✅      | The first connector: Steam sign-in via OpenID, owned games, playtime, achievements, and a review step before anything is written.                                                                         |
+| **4 — Xbox** ✅       | The second connector, via the unofficial OpenXBL. Title history, last-played, achievements, batched playtime. Title-based IGDB matching that refuses to guess, with the unmatched tail listed for review. |
+| 5 — PlayStation       | PSN library and trophies (no playtime — see above).                                                                                                                                                       |
+| 6 — Nintendo          | Nintendo, within whatever the platform actually permits.                                                                                                                                                  |
+| **7 — stats** ✅      | Pulled forward ahead of PlayStation and Nintendo. Stats page, year in review, backlog triage — every figure carrying the share of the library it could see, computed locally with no bridge involvement.  |
+| 8 — import/export     | CSV import from other trackers, richer export formats.                                                                                                                                                    |

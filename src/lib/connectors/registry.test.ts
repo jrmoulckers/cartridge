@@ -114,7 +114,7 @@ describe('the registry', () => {
     registerConnector(healthy);
     const result = await fetchLibrary('steam', { credentials });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.items[0].title).toBe('Hades');
+    if (result.ok) expect(result.value.items[0]!.title).toBe('Hades');
     expect(statusFor('steam').health).toBe('ok');
   });
 
@@ -122,7 +122,7 @@ describe('the registry', () => {
     registerConnector(noPlaytime);
     const result = await fetchLibrary('playstation', { credentials });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.items[0].minutesPlayed).toBeNull();
+    if (result.ok) expect(result.value.items[0]!.minutesPlayed).toBeNull();
   });
 });
 
@@ -160,9 +160,9 @@ describe('the error boundary', () => {
     expect(outcomes.get('nintendo')?.ok).toBe(false);
 
     const status = get(connectorStatus);
-    expect(status.steam.health).toBe('ok');
-    expect(status.xbox.health).toBe('degraded');
-    expect(status.nintendo.health).toBe('degraded');
+    expect(status.steam!.health).toBe('ok');
+    expect(status.xbox!.health).toBe('degraded');
+    expect(status.nintendo!.health).toBe('degraded');
     expect(get(anyDegraded)).toBe(true);
   });
 
@@ -205,6 +205,6 @@ describe('the error boundary', () => {
     registerConnector(healthy);
     const result = await fetchAchievements('steam', { credentials, externalId: '1145360' });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.items[0].achievements.earned).toBe(30);
+    if (result.ok) expect(result.value.items[0]!.achievements.earned).toBe(30);
   });
 });

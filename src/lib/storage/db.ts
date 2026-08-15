@@ -35,7 +35,11 @@ interface CartridgeDB extends DBSchema {
     value: PlatformLink;
     indexes: { byGame: string; byPlatform: string };
   };
-  entries: { key: string; value: Entry; indexes: { byGame: string; byStatus: string; byUpdated: number } };
+  entries: {
+    key: string;
+    value: Entry;
+    indexes: { byGame: string; byStatus: string; byUpdated: number };
+  };
   shelves: { key: string; value: Shelf; indexes: { byOrder: number } };
   sessionStats: { key: string; value: SessionStat; indexes: { byGame: string } };
   meta: { key: string; value: { key: string; value: unknown } };
@@ -230,9 +234,7 @@ export async function putLink(link: PlatformLink): Promise<PlatformLink> {
   return next;
 }
 
-export async function createLink(
-  input: Omit<PlatformLink, keyof Record_>,
-): Promise<PlatformLink> {
+export async function createLink(input: Omit<PlatformLink, keyof Record_>): Promise<PlatformLink> {
   const now = Date.now();
   const link: PlatformLink = { ...input, id: uid(), createdAt: now, updatedAt: now };
   await (await db()).put('platformLinks', raw(link));
@@ -296,10 +298,9 @@ export async function getObservationsForLink(
   platform: Platform,
   externalId: string,
 ): Promise<PlaytimeObservation[]> {
-  const rows = await (await db()).getAllFromIndex('playtimeObservations', 'byLink', [
-    platform,
-    externalId,
-  ]);
+  const rows = await (
+    await db()
+  ).getAllFromIndex('playtimeObservations', 'byLink', [platform, externalId]);
   return rows.sort((a, b) => a.observedAt - b.observedAt);
 }
 
@@ -357,7 +358,10 @@ export async function ensureBuiltinShelves(): Promise<Shelf[]> {
 export async function deleteGame(id: ID): Promise<void> {
   const database = await db();
   const now = Date.now();
-  const tx = database.transaction(['games', 'entries', 'platformLinks', 'sessionStats'], 'readwrite');
+  const tx = database.transaction(
+    ['games', 'entries', 'platformLinks', 'sessionStats'],
+    'readwrite',
+  );
   const game = await tx.objectStore('games').get(id);
   if (game) await tx.objectStore('games').put(raw({ ...game, deleted: now, updatedAt: now }));
   for (const store of ['entries', 'platformLinks', 'sessionStats'] as const) {
@@ -388,9 +392,9 @@ export async function deleteShelf(id: ID): Promise<void> {
   // Drop the shelf id from every entry that referenced it, so no entry points at a ghost.
   for (const entry of await tx.objectStore('entries').getAll()) {
     if (!entry.shelfIds.includes(id)) continue;
-    await tx.objectStore('entries').put(
-      raw({ ...entry, shelfIds: entry.shelfIds.filter((s) => s !== id), updatedAt: now }),
-    );
+    await tx
+      .objectStore('entries')
+      .put(raw({ ...entry, shelfIds: entry.shelfIds.filter((s) => s !== id), updatedAt: now }));
   }
   await tx.done;
 }

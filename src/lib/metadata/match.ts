@@ -170,6 +170,7 @@ export function bestMatch<T>(candidates: Scored<T>[]): T | null {
 
   const ranked = [...candidates].sort((a, b) => b.score - a.score);
   const [winner, runnerUp] = ranked;
+  if (!winner) return null;
 
   if (winner.score < TITLE_MATCH_THRESHOLD) return null;
   if (runnerUp && winner.score - runnerUp.score < TITLE_MATCH_MARGIN) return null;

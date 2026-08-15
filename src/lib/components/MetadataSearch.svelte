@@ -69,8 +69,8 @@
 
   {#if !$bridgeConfigured}
     <p class="muted hint">
-      No metadata bridge is configured, so covers and release details are typed in by hand.
-      That's a perfectly good way to use Cartridge — or
+      No metadata bridge is configured, so covers and release details are typed in by hand. That's a
+      perfectly good way to use Cartridge — or
       <a href="/settings" use:link>connect a bridge</a> to have them filled in for you.
     </p>
   {:else}

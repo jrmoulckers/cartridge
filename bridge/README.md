@@ -15,22 +15,22 @@ type in the titles and everything else works exactly the same. See `../ARCHITECT
 
 ## What it does
 
-| Route | Purpose |
-| --- | --- |
-| `GET /health` | Liveness. Answers any origin, so a bad `ALLOWED_ORIGINS` is diagnosable. |
-| `GET /igdb/search?q=<term>&limit=<1-25>` | Normalized metadata search. |
-| `GET /igdb/game/<igdbId>` | Normalized metadata for one game. |
-| `GET /igdb/by-steam?appids=<a,b,c>` | Steam appids resolved to IGDB games, up to 100 at a time. |
-| `GET /igdb/by-title?titles=<a\nb\nc>` | Plain titles resolved to IGDB games, strictly, up to 20 at a time. Paced, and answers `complete: false` rather than failing if IGDB throttles it partway. |
-| `GET /steam/login?return=<app URL>` | Starts Steam OpenID sign-in. |
-| `GET /steam/return?openid.*` | Verifies Steam's assertion, then redirects to the app with `#steam_id=…`. |
-| `GET /steam/library?steamid=<id>` | Owned games with total playtime and last-played. |
-| `GET /steam/recent?steamid=<id>` | The last two weeks. |
-| `GET /steam/achievements?steamid=<id>&appids=<a,b>` | Achievement progress, up to 20 appids at a time. |
-| `GET /xbox/account` | Whose OpenXBL key this is — XUID, gamertag, gamerscore. |
-| `GET /xbox/library?xuid=<id>` | Title history: games played, last-played, achievement counts. |
-| `GET /xbox/playtime?xuid=<id>&titleids=<a,b>` | Minutes played, batched, up to 200 title ids. |
-| `GET /xbox/achievements?xuid=<id>&titleids=<a,b>` | Achievement detail, up to 10 title ids at a time. |
+| Route                                               | Purpose                                                                                                                                                   |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                       | Liveness. Answers any origin, so a bad `ALLOWED_ORIGINS` is diagnosable.                                                                                  |
+| `GET /igdb/search?q=<term>&limit=<1-25>`            | Normalized metadata search.                                                                                                                               |
+| `GET /igdb/game/<igdbId>`                           | Normalized metadata for one game.                                                                                                                         |
+| `GET /igdb/by-steam?appids=<a,b,c>`                 | Steam appids resolved to IGDB games, up to 100 at a time.                                                                                                 |
+| `GET /igdb/by-title?titles=<a\nb\nc>`               | Plain titles resolved to IGDB games, strictly, up to 20 at a time. Paced, and answers `complete: false` rather than failing if IGDB throttles it partway. |
+| `GET /steam/login?return=<app URL>`                 | Starts Steam OpenID sign-in.                                                                                                                              |
+| `GET /steam/return?openid.*`                        | Verifies Steam's assertion, then redirects to the app with `#steam_id=…`.                                                                                 |
+| `GET /steam/library?steamid=<id>`                   | Owned games with total playtime and last-played.                                                                                                          |
+| `GET /steam/recent?steamid=<id>`                    | The last two weeks.                                                                                                                                       |
+| `GET /steam/achievements?steamid=<id>&appids=<a,b>` | Achievement progress, up to 20 appids at a time.                                                                                                          |
+| `GET /xbox/account`                                 | Whose OpenXBL key this is — XUID, gamertag, gamerscore.                                                                                                   |
+| `GET /xbox/library?xuid=<id>`                       | Title history: games played, last-played, achievement counts.                                                                                             |
+| `GET /xbox/playtime?xuid=<id>&titleids=<a,b>`       | Minutes played, batched, up to 200 title ids.                                                                                                             |
+| `GET /xbox/achievements?xuid=<id>&titleids=<a,b>`   | Achievement detail, up to 10 title ids at a time.                                                                                                         |
 
 Every `/xbox/*` route requires an `X-XBL-Key` header. See
 [the Xbox path](#how-xbox-works) below.
@@ -44,14 +44,14 @@ app release.
 - **Not a database.** It never stores a library, a shelf, a rating, a review or a note.
 - **Not an inbox.** It accepts no `POST`. There is no endpoint that takes user data.
 - **Not an identity.** No cookies, no accounts, no user identifiers, no request-body logs.
-- **Not a credential store.** A credential travels from the device to the bridge *per
-  request*, is used, and is forgotten inside that request. The bridge never persists one.
+- **Not a credential store.** A credential travels from the device to the bridge _per
+  request_, is used, and is forgotten inside that request. The bridge never persists one.
 - **Not required.** Turn it off and the app keeps working.
 
 Everything in KV is public game data — IGDB responses, Steam achievement schemas, the
 appid → IGDB mapping, the title → IGDB mapping — plus the bridge's own Twitch app token.
 **No cache key anywhere in this worker contains a Steam ID, an XUID or an OpenXBL key**, and
-no owned-games list, playtime figure or achievement count for a *person* is ever written.
+no owned-games list, playtime figure or achievement count for a _person_ is ever written.
 Those responses are `no-store` end to end.
 
 ## Secrets you need
@@ -59,11 +59,11 @@ Those responses are `no-store` end to end.
 Three — and note that **none of them is for Xbox.** Two come from a single **Twitch
 application** — IGDB's API is authenticated through Twitch — and one from Steam.
 
-| Secret | What it is |
-| --- | --- |
-| `TWITCH_CLIENT_ID` | Your Twitch application's client id. |
-| `TWITCH_CLIENT_SECRET` | Your Twitch application's client secret. |
-| `STEAM_API_KEY` | Your Steam Web API key. Only needed if you want the Steam connector. |
+| Secret                 | What it is                                                           |
+| ---------------------- | -------------------------------------------------------------------- |
+| `TWITCH_CLIENT_ID`     | Your Twitch application's client id.                                 |
+| `TWITCH_CLIENT_SECRET` | Your Twitch application's client secret.                             |
+| `STEAM_API_KEY`        | Your Steam Web API key. Only needed if you want the Steam connector. |
 
 ### How to obtain the Twitch pair
 
@@ -74,7 +74,7 @@ application** — IGDB's API is authenticated through Twitch — and one from St
    - **Name** — anything unique, e.g. `cartridge-metadata`.
    - **OAuth Redirect URLs** — `http://localhost` is fine. The bridge uses the
      client-credentials grant, so no redirect is ever performed.
-   - **Category** — *Application Integration*.
+   - **Category** — _Application Integration_.
 4. **Create**, then **Manage** the app. Copy the **Client ID**, then press **New Secret**
    and copy the **Client Secret** — Twitch shows it once.
 5. Read and follow the [IGDB API terms](https://api-docs.igdb.com/). The free tier allows
@@ -89,7 +89,7 @@ application** — IGDB's API is authenticated through Twitch — and one from St
    check.
 3. Agree to the [Steam Web API Terms of Use](https://steamcommunity.com/dev/apiterms) and
    press **Register**. Copy the key.
-4. The key identifies *you*, not your users. It is used server-side only and is never sent
+4. The key identifies _you_, not your users. It is used server-side only and is never sent
    to a browser.
 
 Skip this one if you do not want the Steam connector — every other route works without it,
@@ -179,7 +179,7 @@ the parameters are worth nothing until Steam confirms it signed them. Four check
 pass before a Steam ID is handed back:
 
 1. `openid.mode` is `id_res`.
-2. `openid.op_endpoint` is Steam's, so a response signed by some *other* OpenID provider
+2. `openid.op_endpoint` is Steam's, so a response signed by some _other_ OpenID provider
    cannot be replayed here.
 3. `openid.return_to` is exactly the URL we asked Steam to return to, so an assertion minted
    for a different relying party cannot be reused.
@@ -219,17 +219,17 @@ rotating it out of a log file afterwards. Inside the worker the key is used and 
 never logged, never written to KV, never echoed in a response, and never part of a cache key.
 
 **A whole Xbox sync is about three upstream requests**, because `/player/titleHistory` carries
-last-played *and* achievement counts inline. That is what the 150/hour budget affords.
+last-played _and_ achievement counts inline. That is what the 150/hour budget affords.
 
 Three things about the data are worth knowing before you read your own library back:
 
-- **Title history is what you have *played*, not what you *own*.** A game bought and never
+- **Title history is what you have _played_, not what you _own_.** A game bought and never
   launched is simply absent from Xbox's answer. Cartridge cannot invent it.
 - **Playtime is patchy.** Minutes come from a separate batched `player/stats` call and only
   exist for titles that define the stat. Everything else is `null` → "Not reported", never a
   fabricated `0`. (On Steam a `0` is real and means "owned, never launched" — a different fact.)
 - **Matching is fuzzy, on purpose conservatively.** IGDB carries Steam appids as external ids
-  but not Xbox title ids, so an Xbox game is matched by *title* via `/igdb/by-title`. That
+  but not Xbox title ids, so an Xbox game is matched by _title_ via `/igdb/by-title`. That
   route accepts a candidate only at **≥ 0.94 similarity and clear of the runner-up by 0.06**;
   a near-tie is treated as ambiguous and refused. Refused titles are imported under Xbox's own
   name, flagged, and listed for review on the import screen. A visible chore is a much better
@@ -240,6 +240,7 @@ Three things about the data are worth knowing before you read your own library b
   stamped on and blank fields are filled, while anything already set, including the title, is
   left alone. So the unmatched tail shrinks over time instead of quietly becoming a second
   copy of a game you already had.
+
 - **A big first sync is paced, not burst.** `/igdb/by-title` is one IGDB search per uncached
   title against a limit of roughly four a second that belongs to the whole bridge, so searches
   are spaced about 300ms apart and cache hits cost nothing. If IGDB throttles us anyway the

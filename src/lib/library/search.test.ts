@@ -175,7 +175,7 @@ describe('searchLibrary', () => {
 
   it('puts the best title match first regardless of sort', () => {
     const found = searchLibrary(library, { query: 'hades' }, 'title');
-    expect(found[0].game.title).toBe('Hades');
+    expect(found[0]!.game.title).toBe('Hades');
   });
 
   it('sorts by title A to Z by default', () => {
@@ -190,7 +190,7 @@ describe('searchLibrary', () => {
 
   it('keeps unknown values last when the direction flips', () => {
     const rated = searchLibrary(library, EMPTY_FILTER, 'rating', 'asc');
-    expect(rated[rated.length - 1].entry.rating).toBeUndefined();
+    expect(rated[rated.length - 1]!.entry.rating).toBeUndefined();
   });
 
   it('sorts by playtime with "not reported" last', () => {
@@ -206,7 +206,7 @@ describe('searchLibrary', () => {
 
 describe('facet collection', () => {
   it('lists genres most common first', () => {
-    expect(collectGenres(library)[0]).toBe('Adventure');
+    expect(collectGenres(library)[0]!).toBe('Adventure');
   });
 
   it('lists tags most common first', () => {

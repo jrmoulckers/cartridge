@@ -16,7 +16,8 @@ jobs:
   web:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+      packages: read
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -25,45 +26,72 @@ jobs:
       build-command: npm run build
       artifact-name: web-build
       artifact-path: dist
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
 
   preview:
     if: github.event_name == 'pull_request'
     needs: web
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+      packages: read
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
 
   perf:
     needs: web
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+      packages: read
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
     with:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       output-dir: dist
       bundle-budget-kb: 2048
       lighthouse-public-upload: false
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
 
-  # Cartridge has no transported lint or format presets, so only the title check runs.
   lint:
     permissions:
       contents: read
+      packages: read
       pull-requests: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
     with:
       node-version: '22'
       package-manager: npm
-      lint-command: ''
-      format-check-command: ''
+      # vendor:check verifies config/engineering/** against engineering-configs.lock.json.
+      # A hand-edit to a generated file otherwise makes "vendored at ref X" a false claim.
+      # Its drift-vs-staleness semantics are upstream's to define, not ours to restate here —
+      # see docs/adopting.md in jrmoulckers/engineering.
+      # The offline variant is deliberate. Drift is what CI can act on and stays fatal;
+      # staleness is a decision for a human at a keyboard, and the lookup behind it is an
+      # unauthenticated call to a third party from a shared runner IP, where the 60/hour
+      # limit is most likely to be hit. The run states that it skipped the check, so a
+      # quiet gate is not mistaken for evidence that the pin is current.
+      # `check:boundaries` proves the layering claims ARCHITECTURE.md makes — an invariant
+      # nothing checks is only a comment. It runs before `lint` so a broken boundary is
+      # reported as a boundary failure rather than buried in rule output.
+      lint-command: npm run vendor:check:offline && npm run check:boundaries && npm run lint
+      format-check-command: npm run format:check
       semantic-pr-title: true
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
 
+  # reusable-security-ci deliberately gets no registry inputs and no packages: read.
+  # It has no install step, and `npm audit` resolves advisory data from the default
+  # registry rather than the scoped one, so it is unaffected by @jrmoulckers/* being
+  # private. Verified against a consumer run whose audit job passed while its install
+  # jobs were failing on the same lockfile. The workflow does not accept these inputs.
   security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
     with:
       node-version: '22'
       package-manager: npm
@@ -73,7 +101,7 @@ jobs:
   bridge-security:
     permissions:
       contents: read
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@09af9883ed3644aff83ce2acc2d67a4f631f3396 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@989301fdb85b26bc0d0ab8da493fb21bd1665a07 # main
     with:
       node-version: '22'
       package-manager: npm

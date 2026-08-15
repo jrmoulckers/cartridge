@@ -154,7 +154,9 @@ export async function getAccount(key: string): Promise<XboxAccount> {
 
   const settings = new Map(
     (Array.isArray(profile.settings) ? profile.settings : [])
-      .filter((s): s is Required<RawSetting> => typeof s?.id === 'string' && typeof s.value === 'string')
+      .filter(
+        (s): s is Required<RawSetting> => typeof s?.id === 'string' && typeof s.value === 'string',
+      )
       .map((s) => [s.id, s.value] as const),
   );
 
@@ -207,8 +209,7 @@ function parseAchievements(raw: RawTitle['achievement']): { earned: number; tota
 }
 
 function normalizeTitle(raw: RawTitle): XboxGame | null {
-  const titleId =
-    typeof raw?.titleId === 'number' ? String(raw.titleId) : raw?.titleId;
+  const titleId = typeof raw?.titleId === 'number' ? String(raw.titleId) : raw?.titleId;
   if (!isTitleId(titleId)) return null;
 
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
@@ -332,7 +333,7 @@ export async function getTitleAchievements(
   if (!isXuid(xuid)) throw new UpstreamError(400, 'That is not an Xbox user id.');
   if (!isTitleId(titleId)) throw new UpstreamError(400, 'That is not an Xbox title id.');
 
-  let rows: RawAchievement[] = [];
+  let rows: RawAchievement[];
   try {
     const data = await call<{ achievements?: RawAchievement[] }>(
       key,

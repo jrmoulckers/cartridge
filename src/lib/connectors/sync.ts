@@ -140,7 +140,14 @@ export interface PlanOptions {
 
 /** Nothing to do — the shape an empty plan takes, so callers never special-case null. */
 export function emptyPlan(platform: Platform): SyncPlan {
-  return { platform, adds: [], updates: [], unchanged: 0, unmatchedCount: 0, matchingIncomplete: false };
+  return {
+    platform,
+    adds: [],
+    updates: [],
+    unchanged: 0,
+    unmatchedCount: 0,
+    matchingIncomplete: false,
+  };
 }
 
 export function planIsEmpty(plan: SyncPlan): boolean {
@@ -277,7 +284,8 @@ export function planSync(
      * that `0` and `null` are genuinely different states a game can move between.
      */
     const minutesPlayed =
-      game.minutesPlayed ?? (stat?.minutesPlayed != null && stat.minutesPlayed > 0 ? stat.minutesPlayed : null);
+      game.minutesPlayed ??
+      (stat?.minutesPlayed != null && stat.minutesPlayed > 0 ? stat.minutesPlayed : null);
 
     // What this sync now knows about a game the library couldn't identify when it arrived.
     const enrich = enrichmentFor(item.game, meta);
@@ -335,7 +343,10 @@ function sameAchievements(a: Achievements | undefined, b: Achievements | undefin
  * - **A field with a value in it is never replaced.** Not the title, not the cover. Filling a
  *   blank is new knowledge; overwriting is an opinion about someone else's library.
  */
-export function enrichmentFor(game: Game, meta: GameMetadata | undefined): GameEnrichment | undefined {
+export function enrichmentFor(
+  game: Game,
+  meta: GameMetadata | undefined,
+): GameEnrichment | undefined {
   if (!meta) return undefined;
   if (game.igdbId != null && game.igdbId !== meta.igdbId) return undefined;
 

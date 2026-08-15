@@ -155,7 +155,8 @@ export function computeStats(items: LibraryItem[]): LibraryStats {
       else {
         playedAboveZero++;
         playedAboveZeroMinutes += minutes;
-        if (!mostPlayed || minutes > mostPlayed.amount) mostPlayed = ref(game.id, game.title, minutes);
+        if (!mostPlayed || minutes > mostPlayed.amount)
+          mostPlayed = ref(game.id, game.title, minutes);
       }
       if (entry.status === 'played' && (!leastPlayedFinish || minutes < leastPlayedFinish.amount)) {
         leastPlayedFinish = ref(game.id, game.title, minutes);
@@ -231,7 +232,10 @@ export function computeStats(items: LibraryItem[]): LibraryStats {
 
     // ── Backlog residency, by the day it entered the library. `createdAt` is a fact about
     //    the import, which is exactly what "how long has this been sitting here" asks.
-    if (entry.status === 'backlog' && (!longestInBacklog || entry.createdAt < longestInBacklog.amount)) {
+    if (
+      entry.status === 'backlog' &&
+      (!longestInBacklog || entry.createdAt < longestInBacklog.amount)
+    ) {
       longestInBacklog = ref(game.id, game.title, entry.createdAt);
     }
   }
@@ -281,10 +285,15 @@ export function computeStats(items: LibraryItem[]): LibraryStats {
     },
     completion: completion(byStatus, total),
     genres: {
-      buckets: rank([...genreCounts.entries()].map(([key, g]) => ({ key, label: g.label, count: g.count }))),
+      buckets: rank(
+        [...genreCounts.entries()].map(([key, g]) => ({ key, label: g.label, count: g.count })),
+      ),
       covered: withGenres,
       total,
-      reason: total - withGenres ? 'These games carry no genre — add one, or match them to IGDB.' : undefined,
+      reason:
+        total - withGenres
+          ? 'These games carry no genre — add one, or match them to IGDB.'
+          : undefined,
     },
     genresByRating: [...genreRatings.entries()]
       .filter(([, g]) => g.n >= GENRE_RATING_MINIMUM)
@@ -360,7 +369,10 @@ function platformStats(
         minutes:
           m && m.covered
             ? measure(m.minutes, m.covered, count)
-            : unavailable<number>(count, `${PLATFORM_LABELS[platform]} reports no playtime for these.`),
+            : unavailable<number>(
+                count,
+                `${PLATFORM_LABELS[platform]} reports no playtime for these.`,
+              ),
       };
     })
     .sort((a, b) => b.games - a.games || a.label.localeCompare(b.label));

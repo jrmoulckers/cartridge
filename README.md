@@ -10,14 +10,14 @@ conveniences on top of an app that is already complete without them.
 
 ## Status
 
-| Phase | State |
-| --- | --- |
-| 1 — local-first core | ✅ done |
-| 2 — metadata bridge + connector interface | ✅ done |
-| 3 — Steam connector | ✅ done |
-| 4 — Xbox connector | ✅ done |
-| 5–6 — PlayStation, Nintendo connectors | not started |
-| 7–8 — stats, import/export | not started |
+| Phase                                     | State       |
+| ----------------------------------------- | ----------- |
+| 1 — local-first core                      | ✅ done     |
+| 2 — metadata bridge + connector interface | ✅ done     |
+| 3 — Steam connector                       | ✅ done     |
+| 4 — Xbox connector                        | ✅ done     |
+| 5–6 — PlayStation, Nintendo connectors    | not started |
+| 7–8 — stats, import/export                | not started |
 
 ## Quick start
 
@@ -30,14 +30,14 @@ That's it. No configuration, no keys, no account. Add a game and start using it.
 
 ## Scripts
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Vite dev server |
-| `npm run build` | Production build to `dist/` (PWA included) |
-| `npm run preview` | Serve the production build |
-| `npm run check` | `svelte-check` + `tsc` |
-| `npm test` | Vitest, once |
-| `npm run test:watch` | Vitest, watching |
+| Command              | What it does                               |
+| -------------------- | ------------------------------------------ |
+| `npm run dev`        | Vite dev server                            |
+| `npm run build`      | Production build to `dist/` (PWA included) |
+| `npm run preview`    | Serve the production build                 |
+| `npm run check`      | `svelte-check` + `tsc`                     |
+| `npm test`           | Vitest, once                               |
+| `npm run test:watch` | Vitest, watching                           |
 
 ## Optional: metadata
 
@@ -50,14 +50,14 @@ Without it, you type the details in yourself and everything else is identical.
 
 ## Documentation
 
-| Document | What's in it |
-| --- | --- |
-| [PRODUCT.md](PRODUCT.md) | What Cartridge is, who it's for, and what it refuses to be. |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The four non-negotiables, the data model, the layers, the failure modes. |
-| [DESIGN.md](DESIGN.md) | The design system, sourced entirely from `@jrm/tokens`. |
-| [AGENTS.md](AGENTS.md) | Conventions for anyone — human or agent — working in this repo. |
+| Document                             | What's in it                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| [PRODUCT.md](PRODUCT.md)             | What Cartridge is, who it's for, and what it refuses to be.              |
+| [ARCHITECTURE.md](ARCHITECTURE.md)   | The four non-negotiables, the data model, the layers, the failure modes. |
+| [DESIGN.md](DESIGN.md)               | The design system, sourced entirely from `@jrm/tokens`.                  |
+| [AGENTS.md](AGENTS.md)               | Conventions for anyone — human or agent — working in this repo.          |
 | [bridge/README.md](bridge/README.md) | The worker: secrets, deploy, hardening, and what it deliberately is not. |
-| [vendor/README.md](vendor/README.md) | The vendored design tokens and where they come from. |
+| [vendor/README.md](vendor/README.md) | The vendored design tokens and where they come from.                     |
 
 ## Product authority
 
@@ -77,7 +77,7 @@ assets in [jrmoulckers/.github](https://github.com/jrmoulckers/.github).
 Your library lives in IndexedDB in your browser. There is no Cartridge account and no
 Cartridge server — nothing to sign up for and nothing to leak.
 
-**Take a backup.** *Settings → Your data → Save a backup* writes one JSON file, covers
+**Take a backup.** _Settings → Your data → Save a backup_ writes one JSON file, covers
 included, that you own. Restoring it replaces the library on that device (and downloads a
 copy of what was there first, just in case).
 

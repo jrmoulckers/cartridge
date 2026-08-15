@@ -6,7 +6,15 @@
  * — a fully-formed `LibraryItem`, including the `totalMinutes` join the library store
  * computes — is the thing every stats test needs and the thing most easily got wrong.
  */
-import type { Entry, Game, LibraryItem, Platform, PlatformLink, SessionStat, Status } from '../types';
+import type {
+  Entry,
+  Game,
+  LibraryItem,
+  Platform,
+  PlatformLink,
+  SessionStat,
+  Status,
+} from '../types';
 
 const T0 = Date.UTC(2020, 0, 1);
 

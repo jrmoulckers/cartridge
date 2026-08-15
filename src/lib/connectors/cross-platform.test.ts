@@ -93,19 +93,19 @@ describe('a game owned on Steam and on Xbox', () => {
 
     // Not an add. The Xbox row found the Steam-imported game by its IGDB id.
     expect(plan.adds).toHaveLength(0);
-    expect(plan.updates[0].newLink).toBe(true);
+    expect(plan.updates[0]!.newLink).toBe(true);
 
     const items = get(library);
     expect(items).toHaveLength(1);
 
-    const platforms = items[0].links.map((l) => l.platform).sort();
+    const platforms = items[0]!.links.map((l) => l.platform).sort();
     expect(platforms).toEqual(['steam', 'xbox']);
-    expect(items[0].links.map((l) => l.externalId).sort()).toEqual(['1145360', '1963298018']);
+    expect(items[0]!.links.map((l) => l.externalId).sort()).toEqual(['1145360', '1963298018']);
 
     // One stat row per platform, and a total that adds them up. Neither figure overwrites
     // the other — "how long have I played Hades" spans the platforms it was played on.
-    expect(items[0].stats).toHaveLength(2);
-    expect(items[0].totalMinutes).toBe(1500);
+    expect(items[0]!.stats).toHaveLength(2);
+    expect(items[0]!.totalMinutes).toBe(1500);
   });
 
   it('keeps the single rating and review the user wrote, from either direction', async () => {
@@ -122,11 +122,11 @@ describe('a game owned on Steam and on Xbox', () => {
 
     const items = get(library);
     expect(items).toHaveLength(1);
-    expect(items[0].entry.rating).toBe(5);
-    expect(items[0].entry.review).toBe('Still the best run-based game there is.');
-    expect(items[0].entry.favourite).toBe(true);
+    expect(items[0]!.entry.rating).toBe(5);
+    expect(items[0]!.entry.review).toBe('Still the best run-based game there is.');
+    expect(items[0]!.entry.favourite).toBe(true);
     // And the status they chose, not the "backlog" a sync would have used for a new game.
-    expect(items[0].entry.status).toBe('played');
+    expect(items[0]!.entry.status).toBe('played');
   });
 
   it('links to each platform separately when the games really are different', async () => {
@@ -158,9 +158,9 @@ describe('a game owned on Steam and on Xbox', () => {
 
     const items = get(library);
     expect(items).toHaveLength(1);
-    expect(items[0].links).toHaveLength(2);
-    expect(items[0].stats).toHaveLength(2);
-    expect(items[0].totalMinutes).toBe(1500);
+    expect(items[0]!.links).toHaveLength(2);
+    expect(items[0]!.stats).toHaveLength(2);
+    expect(items[0]!.totalMinutes).toBe(1500);
   });
 });
 
@@ -208,8 +208,8 @@ describe('an ambiguous title', () => {
 
     expect(plan.updates).toHaveLength(0);
     expect(plan.adds).toHaveLength(1);
-    expect(plan.adds[0].unmatched).toBe(true);
-    expect(plan.adds[0].title).toBe('Some Compilation Nobody Indexes');
+    expect(plan.adds[0]!.unmatched).toBe(true);
+    expect(plan.adds[0]!.title).toBe('Some Compilation Nobody Indexes');
   });
 });
 
@@ -225,8 +225,8 @@ describe('a game imported before anything could identify it', () => {
 
     let items = get(library);
     expect(items).toHaveLength(1);
-    expect(items[0].game.igdbId).toBeUndefined();
-    expect(items[0].game.source).toBe('manual');
+    expect(items[0]!.game.igdbId).toBeUndefined();
+    expect(items[0]!.game.source).toBe('manual');
 
     const { plan } = await sync(
       'steam',
@@ -239,27 +239,25 @@ describe('a game imported before anything could identify it', () => {
 
     items = get(library);
     expect(items).toHaveLength(1);
-    expect(items[0].links.map((l) => l.platform).sort()).toEqual(['steam', 'xbox']);
-    expect(items[0].totalMinutes).toBe(1500);
+    expect(items[0]!.links.map((l) => l.platform).sort()).toEqual(['steam', 'xbox']);
+    expect(items[0]!.totalMinutes).toBe(1500);
 
     // And the door is now shut for good: the row has an identity, so the *third* platform
     // gets a lookup rather than another go at the fuzzy matcher that nearly failed here.
-    expect(items[0].game.igdbId).toBe(1145);
-    expect(items[0].game.source).toBe('igdb');
-    expect(items[0].game.coverUrl).toBe('https://images.test/1145-big.jpg');
-    expect(items[0].game.genres).toEqual(['Action']);
+    expect(items[0]!.game.igdbId).toBe(1145);
+    expect(items[0]!.game.source).toBe('igdb');
+    expect(items[0]!.game.coverUrl).toBe('https://images.test/1145-big.jpg');
+    expect(items[0]!.game.genres).toEqual(['Action']);
   });
 
   it('reports the upgrade instead of pretending it was a routine link', async () => {
     await sync('xbox', [game({ externalId: '1963298018', title: 'Hades' })]);
-    const { results } = await sync(
-      'steam',
-      [game({ externalId: '1145360', title: 'Hades' })],
-      { '1145360': metadata(1145, 'Hades') },
-    );
+    const { results } = await sync('steam', [game({ externalId: '1145360', title: 'Hades' })], {
+      '1145360': metadata(1145, 'Hades'),
+    });
 
-    expect(results[0].outcome).toBe('linked');
-    expect(results[0].detail).toContain('identified');
+    expect(results[0]!.outcome).toBe('linked');
+    expect(results[0]!.detail).toContain('identified');
   });
 
   it('fills blanks and replaces nothing', async () => {
@@ -274,7 +272,7 @@ describe('a game imported before anything could identify it', () => {
       '1145360': { ...metadata(1145, 'HADES: Definitive Edition'), summary: 'A rogue-lite.' },
     });
 
-    const [item] = get(library);
+    const item = get(library)[0]!;
     expect(item.game.title).toBe('Hades');
     expect(item.game.coverUrl).toBe('https://mine.test/hades.jpg');
     // The blanks, though, are worth having.
@@ -294,7 +292,7 @@ describe('a game imported before anything could identify it', () => {
       '1963298018': metadata(1145, 'Hades'),
     });
 
-    const [item] = get(library);
+    const item = get(library)[0]!;
     expect(item.game.igdbId).toBe(999);
     expect(item.game.genres).toEqual([]);
   });
@@ -332,7 +330,10 @@ describe('Xbox failing', () => {
     setBridgeUrl('');
   });
 
-  const xboxCredentials = { apiKey: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', xuid: '2533274800000000' };
+  const xboxCredentials = {
+    apiKey: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    xuid: '2533274800000000',
+  };
   const steamCredentials = { steamId: '76561197960287930' };
 
   function json(body: unknown, status = 200) {
@@ -364,7 +365,7 @@ describe('Xbox failing', () => {
     // And the library the user already has is untouched by any of it.
     const items = get(library);
     expect(items).toHaveLength(1);
-    expect(items[0].totalMinutes).toBe(1200);
+    expect(items[0]!.totalMinutes).toBe(1200);
   });
 
   it('is returned as a value, never as a rejection into the UI', async () => {
@@ -384,10 +385,10 @@ describe('an unreported playtime', () => {
     await sync('xbox', [game({ externalId: '1', title: 'Forza Horizon 5', minutesPlayed: null })]);
 
     const items = get(library);
-    expect(items[0].stats[0].minutesPlayed).toBeNull();
+    expect(items[0]!.stats[0]!.minutesPlayed).toBeNull();
     // `null` totals render as "Not reported". A `0` would render as "0h" — a claim the user
     // has never played a game they may well have finished.
-    expect(items[0].totalMinutes).toBeNull();
+    expect(items[0]!.totalMinutes).toBeNull();
   });
 
   it('is a different fact from a real zero on another platform', async () => {
@@ -398,18 +399,20 @@ describe('an unreported playtime', () => {
 
     const items = get(library);
     expect(items).toHaveLength(1);
-    const byPlatform = Object.fromEntries(items[0].stats.map((s) => [s.platform, s.minutesPlayed]));
+    const byPlatform = Object.fromEntries(
+      items[0]!.stats.map((s) => [s.platform, s.minutesPlayed]),
+    );
     expect(byPlatform).toEqual({ steam: 0, xbox: null });
-    expect(items[0].totalMinutes).toBe(0);
+    expect(items[0]!.totalMinutes).toBe(0);
   });
 
   it('does not overwrite a known figure with an unknown one on the next sync', async () => {
     await sync('xbox', [game({ externalId: '1', title: 'Gears 5', minutesPlayed: 640 })]);
-    expect(get(library)[0].totalMinutes).toBe(640);
+    expect(get(library)[0]!.totalMinutes).toBe(640);
 
     // OpenXBL's stats call is best-effort, so the same library can come back without minutes.
     // Losing a real number to a transient omission would be a silent data loss.
     await sync('xbox', [game({ externalId: '1', title: 'Gears 5', minutesPlayed: null })]);
-    expect(get(library)[0].totalMinutes).toBe(640);
+    expect(get(library)[0]!.totalMinutes).toBe(640);
   });
 });

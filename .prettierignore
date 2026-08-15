@@ -1,0 +1,37 @@
+node_modules
+dist
+dev-dist
+coverage
+package-lock.json
+bridge/package-lock.json
+
+# Prettier can infer no parser for .npmrc. `prettier --check .` skips it, but the glob
+# forms (`--check "**"`) hard-error on it, so pin the behaviour rather than depend on
+# how the format script happens to be spelled.
+.npmrc
+
+# Vendored upstream artifacts — never hand-edited, never reformatted.
+vendor
+.impeccable
+
+# Shared configuration vendored from jrmoulckers/engineering at a pinned ref.
+# engineering-configs.lock.json records a SHA-256 per file and the files are
+# written byte-identical to source, so reformatting them would both destroy the
+# drift check and turn format:check red on files this repo must not edit.
+config/engineering
+engineering-configs.lock.json
+
+# Written by the studio sync engine, never by hand.
+.studio-sync.lock.json
+
+# Synced canon from jrmoulckers/.github — reformatting creates false sync drift.
+.github/agents
+.github/skills
+.github/prompts
+.github/instructions
+# Not present today, but listed so a future canon sync cannot turn format:check
+# red on a branch that never touched it.
+.github/copilot-instructions.md
+
+# Partly upstream-owned: the studio:base region is merged in by the sync engine.
+AGENTS.md

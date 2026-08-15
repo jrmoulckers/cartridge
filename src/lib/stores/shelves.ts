@@ -14,8 +14,12 @@ import { updateEntry, refreshLibrary } from './library';
 
 export const shelves = writable<Shelf[]>([]);
 
-export const builtinShelves = derived(shelves, ($shelves) => $shelves.filter((s) => s.builtinStatus));
-export const customShelves = derived(shelves, ($shelves) => $shelves.filter((s) => !s.builtinStatus));
+export const builtinShelves = derived(shelves, ($shelves) =>
+  $shelves.filter((s) => s.builtinStatus),
+);
+export const customShelves = derived(shelves, ($shelves) =>
+  $shelves.filter((s) => !s.builtinStatus),
+);
 
 export async function refreshShelves(): Promise<void> {
   try {
@@ -73,6 +77,8 @@ export async function removeShelf(shelf: Shelf): Promise<void> {
 /** Add or remove one custom shelf from an entry. */
 export async function toggleShelf(entry: Entry, shelfId: ID): Promise<void> {
   const on = entry.shelfIds.includes(shelfId);
-  const shelfIds = on ? entry.shelfIds.filter((id) => id !== shelfId) : [...entry.shelfIds, shelfId];
+  const shelfIds = on
+    ? entry.shelfIds.filter((id) => id !== shelfId)
+    : [...entry.shelfIds, shelfId];
   await updateEntry(entry, { shelfIds });
 }

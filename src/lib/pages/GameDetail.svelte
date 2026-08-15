@@ -29,7 +29,14 @@
     type Platform,
     type Replay,
   } from '../types';
-  import { formatDate, formatPlaytime, toDateInput, parseDateInput, parseList, clampScore } from '../util';
+  import {
+    formatDate,
+    formatPlaytime,
+    toDateInput,
+    parseDateInput,
+    parseList,
+    clampScore,
+  } from '../util';
   import { renderMarkdown } from '../markdown';
   import Stars from '../components/Stars.svelte';
   import StarRating from '../components/StarRating.svelte';
@@ -42,7 +49,7 @@
     title?: string;
   }
 
-  let { id, title = $bindable(undefined) }: Props = $props();
+  let { id, title = $bindable() }: Props = $props();
 
   // Re-derived from the store so an edit anywhere refreshes this page.
   const item = $derived($library.find((i) => i.game.id === id) ?? findItem(id));
@@ -205,7 +212,9 @@
             value={item.entry.score ?? ''}
             oninput={(e) =>
               saveSoon({
-                score: e.currentTarget.value ? clampScore(Number(e.currentTarget.value)) : undefined,
+                score: e.currentTarget.value
+                  ? clampScore(Number(e.currentTarget.value))
+                  : undefined,
               })}
           />
         </div>
@@ -279,7 +288,8 @@
               id="r-start-{i}"
               type="date"
               value={toDateInput(replay.startedAt)}
-              onchange={(e) => updateReplay(i, { startedAt: parseDateInput(e.currentTarget.value) })}
+              onchange={(e) =>
+                updateReplay(i, { startedAt: parseDateInput(e.currentTarget.value) })}
             />
           </div>
           <div>
@@ -306,14 +316,16 @@
           </button>
         </div>
       {/each}
-      <div><button type="button" class="btn small" onclick={addReplay}>Add a playthrough</button></div>
+      <div>
+        <button type="button" class="btn small" onclick={addReplay}>Add a playthrough</button>
+      </div>
     </section>
 
     <section class="card stack" aria-labelledby="platforms-h">
       <h2 id="platforms-h">Platforms</h2>
       <p class="muted hint">
-        Link this game to the id a platform uses for it. Connectors will fill these in
-        automatically later; until then you can set them by hand.
+        Link this game to the id a platform uses for it. Connectors will fill these in automatically
+        later; until then you can set them by hand.
       </p>
 
       {#each item.links as l (l.id)}
@@ -359,6 +371,9 @@
     {#if item.game.summary}
       <section class="card" aria-labelledby="about-h">
         <h2 id="about-h">About</h2>
+        <!-- renderMarkdown() escapes its input before emitting any tag and produces only
+             the tags it generates itself; markdown.test.ts proves it against XSS payloads. -->
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         <div class="md">{@html renderMarkdown(item.game.summary)}</div>
       </section>
     {/if}
@@ -367,8 +382,8 @@
       <h2 id="danger-h">Remove</h2>
       {#if confirmDelete}
         <p class="muted">
-          Remove <strong>{item.game.title}</strong> and its rating, review and notes from this
-          device? A restored backup can bring it back.
+          Remove <strong>{item.game.title}</strong> and its rating, review and notes from this device?
+          A restored backup can bring it back.
         </p>
         <div class="row wrap">
           <button type="button" class="btn danger" onclick={destroy}>Yes, remove it</button>
