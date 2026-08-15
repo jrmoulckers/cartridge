@@ -21,7 +21,7 @@
   "devDependencies": {
     "@jrmoulckers/eslint-config": ">=0.10.0 <0.11.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
-    "@types/node": "^24.13.2",
+    "@types/node": "^26.2.0",
     "eslint": "^9.0.0",
     "eslint-plugin-svelte": "^2.46.0",
     "fake-indexeddb": "^6.2.5",
