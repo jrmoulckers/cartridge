@@ -395,6 +395,10 @@ Cartridge consumes the JRM Studio backbone rather than inventing its own foundat
   only**. Nothing is copied or vendored: where a rule is Engineering's, this document names
   the ID and then says only what is Cartridge-specific about it. Resolve any ID through
   `principles/index.json` in that repo.
+- **`jrmoulckers/product`** — the ratified `PROD-*` obligations, consumed the same way and
+  resolved through `principles/manifest.json` in that repo. They are cited in
+  [PRODUCT.md](PRODUCT.md), not here: this document owns why the credential boundary is a
+  Worker, and PRODUCT.md owns the obligation that boundary exists to satisfy.
 - **`AGENTS.md`** — product-local rules, with the managed studio base between
   `<!-- studio:base:start -->` and `<!-- studio:base:end -->`.
 

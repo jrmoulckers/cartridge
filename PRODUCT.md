@@ -21,8 +21,10 @@ one place that answers:
 
 ## The promise
 
-_Satisfies `PROD-STRAT-001` — the target user value and the trust constraints that outrank
-adoption or novelty, for the three sections above._
+_Satisfies
+[`PROD-STRAT-001` (Put durable value and trust first)](https://github.com/jrmoulckers/product/blob/main/principles/strategy.md)
+— the target user value and the trust constraints that outrank adoption or novelty,
+for the three sections above._
 
 **Your library is yours, it lives on your device, and it works with nothing connected.**
 
@@ -49,8 +51,10 @@ not the storefront. As of phase 4 this is a tested property rather than an inten
 
 ### Playtime you don't have is not zero
 
-_Satisfies `PROD-MET-003` — unknown and none are different facts, and a number may not claim
-more than the data supports._
+_Satisfies
+[`PROD-MET-003` (Interpret metrics honestly)](https://github.com/jrmoulckers/product/blob/main/principles/metrics.md)
+— unknown and none are different facts, and a number may not claim more than the data
+supports._
 
 PlayStation does not report playtime. Cartridge stores that as `null` and renders it as
 "Not reported". Writing `0h` would be a small lie that quietly poisons every statistic
@@ -71,6 +75,66 @@ Running it again changes nothing. Playtime, last-played and achievements are ref
 ratings, reviews, notes, statuses, dates and shelves are yours and are never written by a
 sync. Disconnecting removes the account and the platform's numbers, and leaves everything you
 wrote exactly where it was.
+
+## What a connector holds
+
+A connector is the one part of Cartridge that handles something genuinely sensitive, so what
+it holds, who it goes to, and what happens when you stop are stated here rather than left to
+the architecture.
+
+### One credential, one purpose
+
+_Satisfies
+[`PROD-COMP-002` (Bound processing by purpose and necessity)](https://github.com/jrmoulckers/product/blob/main/principles/compliance.md)
+and
+[`PROD-COMP-004` (Decide residency and transfer bounds before launch)](https://github.com/jrmoulckers/product/blob/main/principles/compliance.md)._
+
+A connector needs exactly one platform credential and Cartridge asks for nothing else: for
+Steam a 64-bit account id, which is public information; for Xbox the user's own free OpenXBL
+key. PlayStation will need an NPSSO token, which is a real session secret rather than an
+account number, and that is why phase 5 is a step up in sensitivity rather than one more
+storefront.
+
+The credential lives in IndexedDB on the device. It is sent to the bridge only inside the one
+request that cannot be made without it, and only for that request — never to be stored, because
+there is nowhere to store it. Cartridge has no account, so nothing on any server ever
+associates a credential with a person.
+
+The parties are named rather than implied. Everything goes through Cartridge's own Cloudflare
+Worker (`bridge/`), and from there — depending only on which connectors you attach — to Steam's
+Web API, to OpenXBL, and to IGDB via Twitch for covers and metadata. There is no analytics
+vendor, no error reporter and no fourth party.
+
+### Connecting is per platform, and undoing it is one step
+
+_Satisfies
+[`PROD-COMP-008` (Make consent specific and revocable)](https://github.com/jrmoulckers/product/blob/main/principles/compliance.md)._
+
+Attaching Steam says nothing about Xbox. Disconnecting deletes the stored credential rather
+than ending a session, takes the platform's numbers with it, and leaves everything you wrote
+untouched — one button, no harder than connecting was.
+
+Where the promise stops is stated too: an OpenXBL key is issued by xbl.io and lives in your
+account there, so Cartridge forgetting its copy is the whole of what it can do. Killing the key
+everywhere means deleting it at the source, and claiming otherwise would be a revocation
+Cartridge cannot perform.
+
+### Getting your library out, and getting rid of it
+
+_Satisfies
+[`PROD-COMP-003` (Map privacy rights to product behavior)](https://github.com/jrmoulckers/product/blob/main/principles/compliance.md)
+and
+[`PROD-COMP-005` (Bound retention and terminal disposition)](https://github.com/jrmoulckers/product/blob/main/principles/compliance.md)._
+
+Export is the whole library as one JSON file, on demand, with no server involved and nothing
+held back — except credentials, which sit deliberately outside the backup envelope, because a
+backup is a file people email themselves and drop in cloud storage.
+
+Deletion is real deletion: clearing the site's data removes the library, because the device is
+the only place it ever was. The bridge has nothing to delete, which is the whole reason
+Cartridge can promise a deletion outcome without operating a request queue to honour it — it
+caches public facts about games, keyed by game, and never a library, a playtime figure or an
+account id.
 
 ## Ratings
 
@@ -94,8 +158,9 @@ patched.
 
 ## Anti-references
 
-_Satisfies `PROD-STRAT-001` — the rejected options and the trust constraints that ruled them
-out._
+_Satisfies
+[`PROD-STRAT-001` (Put durable value and trust first)](https://github.com/jrmoulckers/product/blob/main/principles/strategy.md)
+— the rejected options and the trust constraints that ruled them out._
 
 Cartridge is deliberately **not**:
 
@@ -107,9 +172,12 @@ Cartridge is deliberately **not**:
 
 ## Stats, and what a number is allowed to claim
 
-_Satisfies `PROD-MET-001` (one owned definition per metric, stating its population, window
-and exclusions) and `PROD-MET-003` (report coverage, limitations and what the number cannot
-claim) — for this section and the two that follow._
+_Satisfies
+[`PROD-MET-001` (Give each metric one versioned decision definition)](https://github.com/jrmoulckers/product/blob/main/principles/metrics.md)
+(one owned definition per metric, stating its population, window and exclusions) and
+[`PROD-MET-003` (Interpret metrics honestly)](https://github.com/jrmoulckers/product/blob/main/principles/metrics.md)
+(report coverage, limitations and what the number cannot claim) — for this section and the
+two that follow._
 
 Cartridge's data is structurally incomplete by design, so the stats screens are built around
 one rule: **every number carries the share of the library it could actually see.** "412 hours"
@@ -152,9 +220,12 @@ useful than the shelf it summarises.
 
 ## Scope by phase
 
-_Satisfies `PROD-STRAT-003` (milestones are coherent outcomes that stay valuable without any
-one platform or vendor) and `PROD-PLAN-001` (each phase is an independently shippable slice —
-phase 7 shipped ahead of 5 and 6 precisely because it did not depend on them)._
+_Satisfies
+[`PROD-STRAT-003` (Build roadmaps from coherent outcome milestones)](https://github.com/jrmoulckers/product/blob/main/principles/strategy.md)
+(milestones are coherent outcomes that stay valuable without any one platform or vendor) and
+[`PROD-PLAN-001` (Plan independently shippable outcome slices)](https://github.com/jrmoulckers/product/blob/main/principles/planning-and-delivery.md)
+(each phase is an independently shippable slice — phase 7 shipped ahead of 5 and 6 precisely
+because it did not depend on them)._
 
 | Phase                 | What lands                                                                                                                                                                                                |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
