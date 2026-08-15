@@ -3,8 +3,19 @@
 # =============================================================================
 #
 # Nothing automated dependency currency before this file existed, which is how the six
-# reusable-workflow SHA pins drifted ten commits without anyone noticing. The
-# `github-actions` entry is the direct fix for that class of drift.
+# reusable-workflow SHA pins drifted ten commits without anyone noticing.
+#
+# That specific drift is NOT fixed here, and the first run of this file proved it. #52
+# grouped the whole `github-actions` ecosystem and proposed exactly two changes, both
+# versioned actions; it proposed nothing for the seven backbone reusable-workflow refs.
+# The updater resolves a SHA pin to the SHA of the newest release or tag, and
+# jrmoulckers/.github publishes neither — zero tags, zero releases — so there is nothing
+# for it to resolve. Upstream report: dependabot/dependabot-core#15577.
+#
+# So those pins are still maintained by hand. Re-test the claim rather than trusting this
+# comment: after the backbone next moves, a `github-actions` pull request that still
+# touches only versioned actions confirms it, and one that bumps a reusable-workflow ref
+# means this comment is stale and should go.
 #
 # Commit-message prefixes are not cosmetic. CI runs a Conventional-Commits check on the
 # pull request title, and Dependabot derives that title from these prefixes, so a default
@@ -19,9 +30,10 @@
 version: 2
 
 updates:
-  # Covers every `uses:` reference in .github/workflows, including the reusable workflows
-  # called from the backbone by immutable SHA. `directory: /` is the documented value for
-  # this ecosystem — it means .github/workflows, not the repository root.
+  # Covers versioned `uses:` references in .github/workflows — the actions with tags and
+  # releases behind them. It does not reach the backbone reusable-workflow SHA pins in the
+  # same files; see the header. `directory: /` is the documented value for this ecosystem —
+  # it means .github/workflows, not the repository root.
   - package-ecosystem: github-actions
     directory: /
     schedule:
