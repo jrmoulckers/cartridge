@@ -29,18 +29,28 @@ const ARTICLES = /^(the|a|an)\s+/;
  * which IGDB would recognise verbatim.
  */
 export function matchKey(title: string): string {
-  return title
-    .replace(/[™®©]/g, ' ')
-    .replace(BRACKETED, ' ')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(ARTICLES, '')
+  return normalizedTitle(title)
     .replace(EDITION_NOISE, ' ')
     .replace(PLATFORM_NOISE, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Whether a candidate's normalized title is already bare, before edition noise is removed. */
+export function isUnadornedTitle(title: string, identityKey: string): boolean {
+  return normalizedTitle(title) === identityKey;
+}
+
+function normalizedTitle(title: string): string {
+  return title
+    .replace(/[™®©]/g, ' ')
+    .replace(BRACKETED, ' ')
+    .replace(/['’]s\b/gi, 's')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(ARTICLES, '');
 }
 
 /** Similarity in 0–1, by Sørensen–Dice over character bigrams. */
@@ -95,6 +105,12 @@ export const TITLE_MATCH_MARGIN = 0.06;
 export interface Scored<T> {
   item: T;
   score: number;
+  /** Candidates with the same identity key are variants of one title, not ambiguous matches. */
+  identityKey: string;
+  /** Prefer the unadorned title within an identity group. */
+  preferred?: boolean;
+  /** Stable final ordering within an identity group; IGDB callers use the numeric game id. */
+  tieBreaker: number;
 }
 
 /**
@@ -108,7 +124,20 @@ export interface Scored<T> {
 export function bestMatch<T>(candidates: Scored<T>[]): T | null {
   if (!candidates.length) return null;
 
-  const ranked = [...candidates].sort((a, b) => b.score - a.score);
+  const byIdentity = new Map<string, Scored<T>>();
+  for (const candidate of candidates) {
+    const current = byIdentity.get(candidate.identityKey);
+    if (
+      !current ||
+      Number(candidate.preferred) > Number(current.preferred) ||
+      (Boolean(candidate.preferred) === Boolean(current.preferred) &&
+        candidate.tieBreaker < current.tieBreaker)
+    ) {
+      byIdentity.set(candidate.identityKey, candidate);
+    }
+  }
+
+  const ranked = [...byIdentity.values()].sort((a, b) => b.score - a.score);
   const [winner, runnerUp] = ranked;
 
   if (winner.score < TITLE_MATCH_THRESHOLD) return null;

@@ -171,14 +171,16 @@ describe('an ambiguous title', () => {
     // Two candidates, both plausible, no way to tell which. Picking either would attach a
     // rating to the wrong game and nothing on screen would ever reveal it.
     const chosen = bestMatch([
-      { item: 'Halo 3', score: 0.95 },
-      { item: 'Halo 3: ODST', score: 0.94 },
+      { item: 'Halo 3', score: 0.95, identityKey: 'halo 3', tieBreaker: 1 },
+      { item: 'Halo 3: ODST', score: 0.94, identityKey: 'halo 3 odst', tieBreaker: 2 },
     ]);
     expect(chosen).toBeNull();
   });
 
   it('is refused when nothing clears the bar, even if something is closest', () => {
-    expect(bestMatch([{ item: 'Portal 2', score: 0.909 }])).toBeNull();
+    expect(
+      bestMatch([{ item: 'Portal 2', score: 0.909, identityKey: 'portal 2', tieBreaker: 1 }]),
+    ).toBeNull();
   });
 
   it('resolves when one candidate is exact and the rest are merely similar', () => {
@@ -191,8 +193,8 @@ describe('an ambiguous title', () => {
     expect(runnerUp).toBeLessThan(0.94);
     expect(
       bestMatch([
-        { item: 'Portal', score: 1 },
-        { item: 'Portal 2', score: runnerUp },
+        { item: 'Portal', score: 1, identityKey: 'portal', tieBreaker: 1 },
+        { item: 'Portal 2', score: runnerUp, identityKey: 'portal 2', tieBreaker: 2 },
       ]),
     ).toBe('Portal');
   });
