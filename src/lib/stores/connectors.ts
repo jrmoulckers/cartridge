@@ -28,18 +28,13 @@ import {
   ACHIEVEMENT_BATCH as XBOX_ACHIEVEMENT_BATCH,
   fetchAccount as fetchXboxAccount,
 } from '../connectors/xbox';
-import { matchSteamAppids, matchTitles } from '../metadata/igdb';
+import { matchSteamAppids, matchTitles, TITLE_BATCH } from '../metadata/igdb';
 import type { GameMetadata } from '../metadata/types';
 import { applyPlan, type SyncResultRow } from '../connectors/apply';
 import { emptyPlan, planSync, type SyncPlan } from '../connectors/sync';
 
 /** How many appids go to the bridge's IGDB lookup at once. Matches its own cap. */
 const MATCH_BATCH = 100;
-/**
- * How many *titles* go at once. An order of magnitude smaller than the appid batch, because
- * each uncached title costs an IGDB search rather than a row in a bulk lookup.
- */
-const TITLE_MATCH_BATCH = 20;
 /** Titles written between yields. Big enough to be quick, small enough to stay responsive. */
 const APPLY_CHUNK = 25;
 /**
@@ -322,9 +317,9 @@ async function resolveMetadata(
   // Title matching, for every platform IGDB has no ids for. Deliberately strict at the bridge:
   // an ambiguous title comes back unmatched rather than guessed, and the unmatched tail is
   // shown to the user instead of being quietly resolved to the wrong game.
-  for (let i = 0; i < games.length; i += TITLE_MATCH_BATCH) {
+  for (let i = 0; i < games.length; i += TITLE_BATCH) {
     if (signal?.aborted) return { matches, complete: false };
-    const batch = games.slice(i, i + TITLE_MATCH_BATCH);
+    const batch = games.slice(i, i + TITLE_BATCH);
     const result = await matchTitles(
       batch.map((g) => g.title),
       signal,
@@ -335,7 +330,7 @@ async function resolveMetadata(
       const match = result.matches[game.title.trim()];
       if (match) matches[game.externalId] = match;
     }
-    onProgress(i + TITLE_MATCH_BATCH);
+    onProgress(i + TITLE_BATCH);
     await yieldToUi();
   }
 

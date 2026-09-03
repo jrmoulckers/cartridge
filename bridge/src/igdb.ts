@@ -41,6 +41,12 @@ const TOKEN_SAFETY_S = 300;
  * twenty still finishes in about six seconds.
  */
 const SEARCH_INTERVAL_MS = 300;
+/**
+ * Reserve enough time for one in-flight IGDB request and cache write. The route gives this
+ * matcher a 25 s deadline while the client waits 30 s, so an overloaded cold batch can return
+ * its resolved prefix with `complete: false` instead of being abandoned by the browser.
+ */
+const DEADLINE_RESERVE_MS = 2000;
 
 export class UpstreamError extends Error {
   readonly status: number;
@@ -56,7 +62,7 @@ interface CachedToken {
 }
 
 /** A Twitch app access token, from KV when possible. Never leaves the worker. */
-async function getToken(env: Env): Promise<string> {
+async function getToken(env: Env, signal?: AbortSignal): Promise<string> {
   if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) {
     throw new UpstreamError(503, 'The bridge has no IGDB credentials configured.');
   }
@@ -70,7 +76,7 @@ async function getToken(env: Env): Promise<string> {
     grant_type: 'client_credentials',
   });
 
-  const response = await fetch(TOKEN_URL, { method: 'POST', body });
+  const response = await fetch(TOKEN_URL, { method: 'POST', body, signal });
   if (!response.ok) {
     throw new UpstreamError(502, 'The metadata provider refused the bridge’s credentials.');
   }
@@ -89,8 +95,13 @@ async function getToken(env: Env): Promise<string> {
 }
 
 /** POST an APIcalypse query to IGDB. */
-async function query<T>(env: Env, endpoint: string, body: string): Promise<T[]> {
-  const token = await getToken(env);
+async function query<T>(
+  env: Env,
+  endpoint: string,
+  body: string,
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const token = await getToken(env, signal);
   const response = await fetch(`${IGDB_URL}/${endpoint}`, {
     method: 'POST',
     headers: {
@@ -99,6 +110,7 @@ async function query<T>(env: Env, endpoint: string, body: string): Promise<T[]> 
       Accept: 'application/json',
     },
     body,
+    signal,
   });
 
   if (response.status === 429) {
@@ -351,6 +363,7 @@ export async function matchSteamAppids(
 export async function matchTitles(
   env: Env,
   titles: string[],
+  deadlineAt = Number.POSITIVE_INFINITY,
 ): Promise<{ matches: Record<string, GameMetadata>; complete: boolean }> {
   const matches: Record<string, GameMetadata> = {};
   // Several platform titles can normalise to the same key ("Hades" and "Hades™"). Resolve the
@@ -372,6 +385,10 @@ export async function matchTitles(
       continue;
     }
 
+    if (Date.now() + DEADLINE_RESERVE_MS >= deadlineAt) {
+      return { matches, complete: false };
+    }
+
     // Pace only the calls that actually reach IGDB, and only between them — never before the
     // first, and never after a cache hit that cost nothing.
     if (searched > 0) await sleep(SEARCH_INTERVAL_MS);
@@ -381,11 +398,20 @@ export async function matchTitles(
     try {
       // Search on the normalised key rather than the raw title: "Forza Horizon 5 Premium
       // Edition (PC)" finds nothing, "forza horizon 5" finds the game.
-      rows = await query<IgdbGame>(
-        env,
-        'games',
-        `search "${key}"; ${FIELDS} where game_type = ${GAME_TYPES}; limit 10;`,
-      );
+      const controller = new AbortController();
+      const timer = Number.isFinite(deadlineAt)
+        ? setTimeout(() => controller.abort(), Math.max(0, deadlineAt - Date.now()))
+        : undefined;
+      try {
+        rows = await query<IgdbGame>(
+          env,
+          'games',
+          `search "${key}"; ${FIELDS} where game_type = ${GAME_TYPES}; limit 10;`,
+          controller.signal,
+        );
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
     } catch {
       // Throttled, or upstream fell over. Either way the honest answer is "here is what we
       // got, and we didn't finish" rather than a 502 that throws away work already paid for.

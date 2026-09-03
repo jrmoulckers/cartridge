@@ -20,7 +20,7 @@
     BackupError,
     type Backup,
   } from '../storage/backup';
-  import { bridgeAvailable, bridgeUrl, checkBridge } from '../metadata/igdb';
+  import { bridgeHealth, bridgeUrl, checkBridge } from '../metadata/igdb';
   import ConnectorImport from '../components/ConnectorImport.svelte';
   import { readSteamResult, steamLoginUrl } from '../connectors/steam-auth';
   import { STEAM_PRIVACY_URL } from '../connectors/steam';
@@ -196,6 +196,14 @@
    */
   onMount(() => {
     void (async () => {
+      // Settings is the status surface, so refresh its evidence when it is actually opened.
+      // This does not run during ordinary app boot and an unconfigured device stays network-free.
+      if ($bridgeUrl) {
+        checking = true;
+        void checkBridge().finally(() => {
+          checking = false;
+        });
+      }
       const outcome = readSteamResult();
       if (outcome?.kind === 'connected') {
         await connectSteam(outcome.steamId);
@@ -346,9 +354,11 @@
       Checking…
     {:else if !$bridgeUrl}
       Not configured — metadata lookup is off.
-    {:else if $bridgeAvailable === true}
+    {:else if $bridgeHealth === 'reachable'}
       Connected.
-    {:else if $bridgeAvailable === false}
+    {:else if $bridgeHealth === 'slow'}
+      Reachable, but responding slowly. Adding games by hand still works.
+    {:else if $bridgeHealth === 'unreachable'}
       Not reachable. Adding games by hand still works.
     {:else}
       Configured. It will be tried the next time you search.

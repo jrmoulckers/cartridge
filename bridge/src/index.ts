@@ -72,7 +72,13 @@ const MAX_ACHIEVEMENT_APPIDS = 20;
  * achievements batch is one OpenXBL call per title against a 150-per-hour user quota. Neither
  * is a lookup that can be widened by asking nicely.
  */
+/**
+ * A cold batch deliberately waits at most 19 × 300 ms between IGDB searches and has measured
+ * about 15.2 s end to end. Stop at 25 s, five seconds before the client's non-retrying 30 s
+ * bulk timeout, returning `complete: false` so the next sync resumes from cached results.
+ */
 const MAX_TITLES = 20;
+const TITLE_MATCH_WORK_BUDGET_MS = 25_000;
 const MAX_TITLE_IDS = 200;
 const MAX_ACHIEVEMENT_TITLE_IDS = 10;
 
@@ -315,7 +321,7 @@ export default {
         if (!bounded.length) {
           return fail(origin, 400, 'bad-request', 'Give at least one title.');
         }
-        const matches = await matchTitles(env, bounded);
+        const matches = await matchTitles(env, bounded, Date.now() + TITLE_MATCH_WORK_BUDGET_MS);
         // An incomplete answer is never cached — at the edge or in the browser. Caching "we
         // got throttled halfway" for a day would turn one bad minute into a day of games the
         // user is told can't be identified.

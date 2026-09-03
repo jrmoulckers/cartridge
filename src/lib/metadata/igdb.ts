@@ -17,8 +17,16 @@ import type {
 } from './types';
 import { rememberSearch, recallSearch, rememberGame, recallGame } from './cache';
 
-/** How long any single bridge request may take before it is abandoned. */
-const TIMEOUT_MS = 8000;
+/** Fast, interactive metadata calls should fail back to the local UI promptly. */
+export const INTERACTIVE_TIMEOUT_MS = 8000;
+/**
+ * `/igdb/by-title` is paced by the bridge at 300 ms between at most 20 cold IGDB searches.
+ * Production has measured that batch at about 15.2 s including upstream latency. Keep this
+ * above the bridge's 25 s work deadline so it can return `complete: false` before we abort.
+ */
+export const TITLE_MATCH_TIMEOUT_MS = 30_000;
+/** A health endpoint should be nearly instant; beyond this it is reachable but degraded. */
+const HEALTH_SLOW_MS = 2000;
 /** One retry, for the "the worker was cold" case only. */
 const RETRIES = 1;
 
@@ -31,18 +39,37 @@ export const bridgeUrl = derived(settings, ($settings) => {
   return configured.trim().replace(/\/+$/, '');
 });
 
-/** null = not tried yet, true = reachable, false = tried and failed. */
-export const bridgeAvailable = writable<boolean | null>(null);
+export type BridgeHealth = 'unknown' | 'reachable' | 'slow' | 'unreachable';
+
+/** Only a health probe or a genuine network failure may set this to `unreachable`. */
+export const bridgeHealth = writable<BridgeHealth>('unknown');
+/** Compatibility view for callers that only need the old tri-state answer. */
+export const bridgeAvailable = derived(bridgeHealth, ($health) =>
+  $health === 'unknown' ? null : $health !== 'unreachable',
+);
 
 export const bridgeConfigured = derived(bridgeUrl, ($url) => $url.length > 0);
 
-async function request<T>(path: string, signal?: AbortSignal): Promise<T | null> {
+interface RequestOptions {
+  timeoutMs?: number;
+  retries?: number;
+  healthProbe?: boolean;
+}
+
+async function request<T>(
+  path: string,
+  signal?: AbortSignal,
+  options: RequestOptions = {},
+): Promise<T | null> {
   const base = get(bridgeUrl);
   if (!base) return null;
+  const timeoutMs = options.timeoutMs ?? INTERACTIVE_TIMEOUT_MS;
+  const retries = options.retries ?? RETRIES;
 
-  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const startedAt = performance.now();
     // Abort our request if the caller aborts theirs (a new keystroke, a page change).
     const onAbort = () => controller.abort();
     signal?.addEventListener('abort', onAbort);
@@ -55,20 +82,28 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T | null>
         credentials: 'omit',
         mode: 'cors',
       });
+      // Any HTTP response proves the bridge itself is reachable, even when this endpoint failed.
+      bridgeHealth.set('reachable');
       if (!response.ok) {
         // 4xx is our fault and will not improve on a retry; 5xx might.
         if (response.status < 500) {
-          bridgeAvailable.set(true);
           return null;
         }
         throw new Error(`bridge ${response.status}`);
       }
-      bridgeAvailable.set(true);
+      bridgeHealth.set(
+        options.healthProbe && performance.now() - startedAt >= HEALTH_SLOW_MS
+          ? 'slow'
+          : 'reachable',
+      );
       return (await response.json()) as T;
-    } catch {
+    } catch (error) {
       if (signal?.aborted) return null;
-      if (attempt === RETRIES) {
-        bridgeAvailable.set(false);
+      const timedOut = controller.signal.aborted;
+      if (options.healthProbe || (!timedOut && error instanceof TypeError)) {
+        bridgeHealth.set('unreachable');
+      }
+      if (attempt === retries) {
         return null;
       }
     } finally {
@@ -114,12 +149,15 @@ export async function getGame(igdbId: number, signal?: AbortSignal): Promise<Gam
 export async function checkBridge(): Promise<boolean> {
   const base = get(bridgeUrl);
   if (!base) {
-    bridgeAvailable.set(null);
+    bridgeHealth.set('unknown');
     return false;
   }
-  const health = await request<{ ok: boolean }>('/health');
+  const health = await request<{ ok: boolean }>('/health', undefined, {
+    retries: 0,
+    healthProbe: true,
+  });
   const ok = health?.ok === true;
-  bridgeAvailable.set(ok);
+  if (!ok) bridgeHealth.set('unreachable');
   return ok;
 }
 
@@ -179,6 +217,9 @@ export async function matchTitles(titles: string[], signal?: AbortSignal): Promi
     const data = await request<TitleMatchResponse>(
       `/igdb/by-title?titles=${encodeURIComponent(batch.join('\n'))}`,
       signal,
+      // Retrying this known-slow batch would repeat up to 20 expensive IGDB searches. The
+      // bridge returns partial work explicitly instead, and the next sync resumes from cache.
+      { timeoutMs: TITLE_MATCH_TIMEOUT_MS, retries: 0 },
     );
     if (!data) {
       // Keep what we have and say so. Partial knowledge beats abandoning the sync.
@@ -194,8 +235,8 @@ export async function matchTitles(titles: string[], signal?: AbortSignal): Promi
   return { matches, complete };
 }
 
-/** Titles per `/igdb/by-title` call. Must not exceed the bridge's own cap. */
-const TITLE_BATCH = 20;
+/** Titles per call. Paired with the timeout contract above and the bridge's identical cap. */
+export const TITLE_BATCH = 20;
 
 // ── The strict client ───────────────────────────────────────────────────────
 /**
@@ -245,7 +286,7 @@ export async function bridgeRequest<T>(
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), INTERACTIVE_TIMEOUT_MS);
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort);
 
@@ -258,11 +299,11 @@ export async function bridgeRequest<T>(
     });
 
     if (response.ok) {
-      bridgeAvailable.set(true);
+      bridgeHealth.set('reachable');
       return { ok: true, value: (await response.json()) as T };
     }
 
-    bridgeAvailable.set(true);
+    bridgeHealth.set('reachable');
     // The envelope is the contract, but a proxy or a cold worker can still return HTML.
     let body: BridgeError | null = null;
     try {
@@ -281,16 +322,21 @@ export async function bridgeRequest<T>(
         retryAfterMs: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : undefined,
       },
     };
-  } catch {
-    if (!signal?.aborted) bridgeAvailable.set(false);
+  } catch (error) {
+    const timedOut = controller.signal.aborted && !signal?.aborted;
+    if (!timedOut && !signal?.aborted && error instanceof TypeError) {
+      bridgeHealth.set('unreachable');
+    }
     return {
       ok: false,
       failure: {
         status: 0,
-        error: 'network',
+        error: timedOut ? 'timeout' : 'network',
         message: signal?.aborted
           ? 'That sync was cancelled.'
-          : 'The bridge could not be reached. Everything local still works.',
+          : timedOut
+            ? 'The bridge took too long to answer. Everything already synced is kept.'
+            : 'The bridge could not be reached. Everything local still works.',
       },
     };
   } finally {
