@@ -12,7 +12,7 @@ export default defineConfig({
     alias: { '@jrm/tokens': resolve('vendor/@jrm/tokens') },
   },
   test: {
-    include: ['src/**/*.{test,spec}.ts'],
+    include: ['src/**/*.{test,spec}.ts', 'bridge/src/**/*.{test,spec}.ts'],
     environment: 'jsdom',
   },
 });

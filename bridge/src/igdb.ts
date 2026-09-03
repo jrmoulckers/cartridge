@@ -11,7 +11,7 @@
  * returns it to the client.
  */
 import type { Env, GameMetadata, Platform } from './types';
-import { bestMatch, matchKey, similarity } from './match';
+import { bestMatch, isUnadornedTitle, matchKey, similarity } from './match';
 import {
   readCache,
   writeCache,
@@ -239,7 +239,7 @@ export async function searchGames(env: Env, q: string, limit: number): Promise<G
     `where game_type = ${GAME_TYPES}; limit ${limit};`;
 
   const results = (await query<IgdbGame>(env, 'games', body)).map(normalize);
-  await writeCache(env, key, results, SEARCH_TTL_S);
+  if (results.length) await writeCache(env, key, results, SEARCH_TTL_S);
   return results;
 }
 
@@ -395,7 +395,18 @@ export async function matchTitles(
     const game = bestMatch(
       rows
         .filter((row) => typeof row.name === 'string' && row.name)
-        .map((row) => ({ item: row, score: similarity(key, row.name as string) })),
+        .map((row) => {
+          const name = row.name as string;
+          return {
+            item: row,
+            score: similarity(key, name),
+            identityKey: matchKey(name),
+            // IGDB ids are stable but do not encode game type. Prefer the literal bare title,
+            // then use the lowest id only to make edition-only groups deterministic.
+            preferred: isUnadornedTitle(name, key),
+            tieBreaker: row.id,
+          };
+        }),
     );
 
     const normalized = game ? normalize(game) : null;
