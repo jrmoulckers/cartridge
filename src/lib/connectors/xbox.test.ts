@@ -14,7 +14,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { xboxConnector, isOpenXblKey, isXuid, fetchAccount, OPENXBL_KEY_URL } from './xbox';
-import { matchTitles } from '../metadata/igdb';
+import { bridgeHealth, checkBridge, matchTitles, TITLE_MATCH_TIMEOUT_MS } from '../metadata/igdb';
+import { get } from 'svelte/store';
 import { ConnectorError, type Credentials } from './types';
 import { registerConnector, getConnector } from './registry';
 import { setBridgeUrl } from '../stores/settings';
@@ -45,8 +46,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   setBridgeUrl('');
+  bridgeHealth.set('unknown');
 });
 
 describe('capabilities', () => {
@@ -359,5 +362,72 @@ describe('a title lookup that ran out of budget', () => {
     fetchMock.mockResolvedValueOnce(reply({ matches: {} }));
     const { complete } = await matchTitles(['Halo Infinite']);
     expect(complete).toBe(true);
+  });
+
+  it('gives a cold bulk batch enough time without retrying it', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          const timer = setTimeout(() => resolve(reply({ matches: {}, complete: true })), 15_200);
+          init.signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+
+    const pending = matchTitles(['Halo Infinite']);
+    await vi.advanceTimersByTimeAsync(15_200);
+
+    await expect(pending).resolves.toEqual({ matches: {}, complete: true });
+    expect(TITLE_MATCH_TIMEOUT_MS).toBeGreaterThan(15_200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not duplicate an expensive bulk batch when its own timeout expires', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    const pending = matchTitles(['Halo Infinite']);
+    await vi.advanceTimersByTimeAsync(TITLE_MATCH_TIMEOUT_MS);
+
+    await expect(pending).resolves.toEqual({ matches: {}, complete: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves bridge health unchanged when an endpoint times out', async () => {
+    vi.useFakeTimers();
+    bridgeHealth.set('reachable');
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    const pending = matchTitles(['Halo Infinite']);
+    await vi.advanceTimersByTimeAsync(TITLE_MATCH_TIMEOUT_MS);
+    await pending;
+
+    expect(get(bridgeHealth)).toBe('reachable');
+  });
+
+  it('recovers stale unavailable health when Settings probes a healthy bridge', async () => {
+    bridgeHealth.set('unreachable');
+    fetchMock.mockResolvedValueOnce(reply({ ok: true }));
+
+    await expect(checkBridge()).resolves.toBe(true);
+    expect(get(bridgeHealth)).toBe('reachable');
+    expect(fetchMock).toHaveBeenCalledWith(`${BRIDGE}/health`, expect.any(Object));
   });
 });
