@@ -41,12 +41,16 @@ That's it. No configuration, no keys, no account. Add a game and start using it.
 
 ## Optional: metadata
 
-To get cover art, genres and release dates filled in for you, deploy the bridge — a small
-Cloudflare Worker that talks to IGDB — and paste its URL into **Settings → Metadata
-bridge**. See [`bridge/README.md`](bridge/README.md) for the two secrets you need and how
-to get them.
+Everything above works with nothing configured. If you'd rather not type in cover art, genres
+and release dates, turn on **Settings → Connecting accounts** and the two setup steps appear:
 
-Without it, you type the details in yourself and everything else is identical.
+1. **Metadata bridge** — deploy the bridge, a small Cloudflare Worker that talks to IGDB, and
+   paste its URL in. See [`bridge/README.md`](bridge/README.md) for the two secrets you need
+   and how to get them.
+2. **Your platform accounts** — Steam and Xbox, both of which go through the bridge, so
+   neither turns on until step 1 is done.
+
+Without any of it, you type the details in yourself and everything else is identical.
 
 ## Documentation
 

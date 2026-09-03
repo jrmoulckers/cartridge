@@ -6,7 +6,14 @@
    * Backup and restore live here because they are the only durable answer to "what happens
    * to my library if this device dies" in a local-first app — and both work offline.
    */
-  import { settings, setTheme, setView, setBridgeUrl, type Theme } from '../stores/settings';
+  import {
+    settings,
+    setTheme,
+    setView,
+    setBridgeUrl,
+    setAdvanced,
+    type Theme,
+  } from '../stores/settings';
   import { library, refreshLibrary } from '../stores/library';
   import { refreshShelves } from '../stores/shelves';
   import { showToast } from '../stores/toast';
@@ -52,6 +59,11 @@
   let busy = $state(false);
   let bridgeDraft = $state($settings.bridgeUrl);
   let checking = $state(false);
+  let bridgeProbe = Promise.resolve(false);
+  let bridgeProbeVersion = 0;
+  const bridgeReady = $derived(
+    !checking && ($bridgeHealth === 'reachable' || $bridgeHealth === 'slow'),
+  );
 
   async function exportNow() {
     busy = true;
@@ -118,12 +130,26 @@
     }
   }
 
+  async function probeBridge() {
+    const version = ++bridgeProbeVersion;
+    checking = true;
+    bridgeHealth.set('unknown');
+    bridgeProbe = bridgeProbe.then(() => checkBridge());
+    await bridgeProbe;
+    if (version === bridgeProbeVersion) checking = false;
+  }
+
   async function saveBridge() {
     setBridgeUrl(bridgeDraft);
     bridgeDraft = $settings.bridgeUrl;
-    checking = true;
-    await checkBridge();
-    checking = false;
+    await probeBridge();
+  }
+
+  async function toggleAdvanced(advanced: boolean) {
+    setAdvanced(advanced);
+    if (advanced && $bridgeUrl) {
+      await probeBridge();
+    }
   }
 
   // ── Platforms ─────────────────────────────────────────────────────────────
@@ -198,11 +224,8 @@
     void (async () => {
       // Settings is the status surface, so refresh its evidence when it is actually opened.
       // This does not run during ordinary app boot and an unconfigured device stays network-free.
-      if ($bridgeUrl) {
-        checking = true;
-        void checkBridge().finally(() => {
-          checking = false;
-        });
+      if ($settings.advanced && $bridgeUrl) {
+        void probeBridge();
       }
       const outcome = readSteamResult();
       if (outcome?.kind === 'connected') {
@@ -327,334 +350,359 @@
   {/if}
 </section>
 
-<section class="card stack" aria-labelledby="bridge-h">
-  <h2 id="bridge-h">Metadata bridge <span class="pill">Optional</span></h2>
+<section class="card stack" aria-labelledby="connect-h">
+  <h2 id="connect-h">Connecting accounts <span class="pill">Optional</span></h2>
   <p class="muted">
-    The bridge is a small worker that looks up cover art and release details so you don't have to
-    type them. It never sees your library, your ratings or your reviews — only the words you type
-    into a search box. Leave it blank and Cartridge works exactly as it does now, just with more
-    typing.
+    Cartridge is a shelf, not an account. You add a game, put it on a shelf, rate it and write about
+    it — all of that works on this device with nothing signed in and no connection.
+  </p>
+  <p class="muted">
+    If you'd rather not type in cover art and release dates, Cartridge can look them up and can read
+    what you own from Steam or Xbox. It needs two things set up in order, so it's off until you ask
+    for it.
   </p>
 
-  <div class="row wrap">
-    <div class="grow">
-      <label for="bridge">Bridge URL</label>
-      <input
-        id="bridge"
-        type="url"
-        bind:value={bridgeDraft}
-        placeholder="https://cartridge-bridge.example.workers.dev"
-      />
-    </div>
-    <button type="button" class="btn" onclick={saveBridge}>Save and test</button>
-  </div>
-
-  <p class="muted status">
-    {#if checking}
-      Checking…
-    {:else if !$bridgeUrl}
-      Not configured — metadata lookup is off.
-    {:else if $bridgeHealth === 'reachable'}
-      Connected.
-    {:else if $bridgeHealth === 'slow'}
-      Reachable, but responding slowly. Adding games by hand still works.
-    {:else if $bridgeHealth === 'unreachable'}
-      Not reachable. Adding games by hand still works.
-    {:else}
-      Configured. It will be tried the next time you search.
-    {/if}
-  </p>
+  <label class="switch">
+    <input
+      type="checkbox"
+      checked={$settings.advanced}
+      onchange={(e) => toggleAdvanced(e.currentTarget.checked)}
+    />
+    <span>Set up lookup and platform accounts</span>
+  </label>
 </section>
 
-<section class="card stack" aria-labelledby="platforms-h">
-  <h2 id="platforms-h">Platforms <span class="pill">Optional</span></h2>
-  <p class="muted">
-    Connecting a platform imports what you own and how long you've played it. Cartridge works
-    exactly as well with nothing connected — this only saves typing.
-  </p>
+{#if $settings.advanced}
+  <section class="card stack" aria-labelledby="bridge-h">
+    <h2 id="bridge-h"><span class="step">Step 1</span> Metadata bridge</h2>
+    <p class="muted">
+      The bridge is a small worker you point Cartridge at. It looks up cover art and release
+      details, and it is the route Steam and Xbox go through — neither can be reached from a browser
+      directly, so <strong>nothing in Step 2 works until this is reachable</strong>. It never sees
+      your library, your ratings or your reviews.
+    </p>
 
-  <div class="platform">
-    <div class="row spread wrap">
+    <div class="row wrap">
       <div class="grow">
-        <h3>Steam</h3>
-        {#if !$connectionsLoaded}
-          <p class="muted status">Checking…</p>
-        {:else if steam}
-          <p class="muted status">
-            Connected as {steam.account}.
-            {#if steam.syncedAt}
-              Last synced {new Date(steam.syncedAt).toLocaleDateString()}.
-            {:else}
-              Not synced yet.
-            {/if}
-          </p>
-        {:else}
-          <p class="muted status">
-            Signs in through Steam itself. Cartridge never sees your password — only your public
-            account number.
-          </p>
-        {/if}
+        <label for="bridge">Bridge URL</label>
+        <input
+          id="bridge"
+          type="url"
+          bind:value={bridgeDraft}
+          placeholder="https://cartridge-bridge.example.workers.dev"
+        />
       </div>
-
-      <div class="row wrap">
-        {#if steam}
-          <button type="button" class="btn primary" onclick={syncSteam} disabled={syncing}>
-            {steamSyncing ? 'Reading your library…' : 'Sync now'}
-          </button>
-          <button
-            type="button"
-            class="btn ghost"
-            onclick={() => (confirmingDisconnect = true)}
-            disabled={syncing}
-          >
-            Disconnect
-          </button>
-        {:else}
-          <button type="button" class="btn primary" onclick={connect} disabled={!$bridgeUrl}>
-            Connect Steam
-          </button>
-        {/if}
-      </div>
+      <button type="button" class="btn" onclick={saveBridge}>Save and test</button>
     </div>
 
-    {#if !$bridgeUrl}
-      <p class="muted status">
-        Steam needs a bridge: its API has no browser access and requires a server-side key. Set one
-        above and this button turns on.
-      </p>
-    {/if}
+    <p class="muted status">
+      {#if checking}
+        Checking…
+      {:else if !$bridgeUrl}
+        Not configured — lookup is off and the accounts below stay disabled.
+      {:else if $bridgeHealth === 'reachable'}
+        Connected.
+      {:else if $bridgeHealth === 'slow'}
+        Reachable, but responding slowly. Account connections remain available.
+      {:else if $bridgeHealth === 'unreachable'}
+        Not reachable. Adding games by hand still works.
+      {:else}
+        Configured — test it before connecting an account.
+      {/if}
+    </p>
+  </section>
 
-    {#if steamNeedsReconnect}
-      <div class="notice">
-        <p>
-          <strong>{steamLinkedCount}</strong>
-          {steamLinkedCount === 1 ? 'game in your library is' : 'games in your library are'}
-          linked to Steam, but this device isn’t connected to it.
-        </p>
-        <p class="muted">
-          Account connections aren’t part of a backup — on purpose, so a backup file never carries
-          an account with it. Everything you wrote came across fine; reconnecting just starts
-          playtime and achievements updating again.
-        </p>
+  <section class="card stack" aria-labelledby="platforms-h">
+    <h2 id="platforms-h"><span class="step">Step 2</span> Your platform accounts</h2>
+    <p class="muted">
+      Connecting an account imports the games you own and how long you've played them, and links
+      each one to a game on your shelves. It never touches what you wrote: your ratings, reviews,
+      notes and shelves are yours, and disconnecting leaves every one of them alone.
+    </p>
+
+    <div class="platform">
+      <div class="row spread wrap">
+        <div class="grow">
+          <h3>Steam</h3>
+          {#if !$connectionsLoaded}
+            <p class="muted status">Checking…</p>
+          {:else if steam}
+            <p class="muted status">
+              Connected as {steam.account}.
+              {#if steam.syncedAt}
+                Last synced {new Date(steam.syncedAt).toLocaleDateString()}.
+              {:else}
+                Not synced yet.
+              {/if}
+            </p>
+          {:else}
+            <p class="muted status">
+              Signs in through Steam itself. Cartridge never sees your password — only your public
+              account number.
+            </p>
+          {/if}
+        </div>
+
         <div class="row wrap">
-          <button type="button" class="btn primary" onclick={connect} disabled={!$bridgeUrl}>
-            Reconnect Steam
-          </button>
+          {#if steam}
+            <button type="button" class="btn primary" onclick={syncSteam} disabled={syncing}>
+              {steamSyncing ? 'Reading your library…' : 'Sync now'}
+            </button>
+            <button
+              type="button"
+              class="btn ghost"
+              onclick={() => (confirmingDisconnect = true)}
+              disabled={syncing}
+            >
+              Disconnect
+            </button>
+          {:else}
+            <button type="button" class="btn primary" onclick={connect} disabled={!bridgeReady}>
+              Connect Steam
+            </button>
+          {/if}
         </div>
       </div>
-    {/if}
 
-    {#if steamNotice}
-      <p class="error" role="alert">{steamNotice}</p>
-    {/if}
-
-    {#if steamSyncing}
-      <p class="muted status" aria-live="polite">
-        {$syncState.phase === 'fetching'
-          ? 'Asking Steam what you own…'
-          : `Identifying games… ${$syncState.done} of ${$syncState.total}`}
-      </p>
-    {/if}
-
-    {#if $syncState.platform === 'steam' && $syncState.error}
-      <div class="notice" role="alert">
-        <p>{$syncState.error}</p>
-        {#if $syncState.helpUrl === STEAM_PRIVACY_URL}
-          <p class="muted">
-            Steam only shares a library when the profile allows it. Open
-            <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
-              your Steam privacy settings
-            </a>
-            and set <strong>Game details</strong> to <strong>Public</strong>. You can set it back
-            afterwards — Cartridge keeps what it imported.
-          </p>
-        {:else if $syncState.helpUrl}
-          <p class="muted">
-            <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
-              How to fix this
-            </a>
-          </p>
-        {/if}
-      </div>
-    {/if}
-
-    {#if confirmingDisconnect}
-      <div class="confirm">
-        <p>Disconnect Steam?</p>
-        <p class="muted">
-          This removes your Steam account number and the Steam playtime and achievement figures from
-          your library. <strong
-            >Your games, ratings, reviews, notes and shelves stay exactly as they are</strong
-          > — they're yours, and they have nothing to do with Steam.
+      {#if !bridgeReady}
+        <p class="muted status">
+          Steam needs a reachable bridge: its API has no browser access and requires a server-side
+          key. Configure and test one above to turn this button on.
         </p>
-        <div class="row wrap">
-          <button type="button" class="btn danger" onclick={confirmDisconnect}>
-            Disconnect Steam
-          </button>
-          <button type="button" class="btn ghost" onclick={() => (confirmingDisconnect = false)}>
-            Keep it connected
-          </button>
+      {/if}
+
+      {#if steamNeedsReconnect}
+        <div class="notice">
+          <p>
+            <strong>{steamLinkedCount}</strong>
+            {steamLinkedCount === 1 ? 'game in your library is' : 'games in your library are'}
+            linked to Steam, but this device isn’t connected to it.
+          </p>
+          <p class="muted">
+            Account connections aren’t part of a backup — on purpose, so a backup file never carries
+            an account with it. Everything you wrote came across fine; reconnecting just starts
+            playtime and achievements updating again.
+          </p>
+          <div class="row wrap">
+            <button type="button" class="btn primary" onclick={connect} disabled={!bridgeReady}>
+              Reconnect Steam
+            </button>
+          </div>
         </div>
-      </div>
-    {/if}
-  </div>
+      {/if}
 
-  <div class="platform">
-    <div class="row spread wrap">
-      <div class="grow">
-        <h3>Xbox <span class="pill">Unofficial</span></h3>
-        {#if !$connectionsLoaded}
-          <p class="muted status">Checking…</p>
-        {:else if xbox}
-          <p class="muted status">
-            Connected as {xbox.account}.
-            {#if xbox.syncedAt}
-              Last synced {new Date(xbox.syncedAt).toLocaleDateString()}.
-            {:else}
-              Not synced yet.
-            {/if}
-          </p>
-        {:else}
-          <p class="muted status">
-            Uses your own free key from OpenXBL, a third-party service. Microsoft has no public Xbox
-            library API, so this is the only route there is — and it can break without warning. If
-            it does, only this tab stops working.
-          </p>
-        {/if}
-      </div>
+      {#if steamNotice}
+        <p class="error" role="alert">{steamNotice}</p>
+      {/if}
 
-      <div class="row wrap">
-        {#if xbox}
-          <button type="button" class="btn primary" onclick={syncXbox} disabled={syncing}>
-            {xboxSyncing ? 'Reading your library…' : 'Sync now'}
-          </button>
-          <button
-            type="button"
-            class="btn ghost"
-            onclick={() => (confirmingXboxDisconnect = true)}
-            disabled={syncing}
-          >
-            Disconnect
-          </button>
-        {/if}
-      </div>
+      {#if steamSyncing}
+        <p class="muted status" aria-live="polite">
+          {$syncState.phase === 'fetching'
+            ? 'Asking Steam what you own…'
+            : `Identifying games… ${$syncState.done} of ${$syncState.total}`}
+        </p>
+      {/if}
+
+      {#if $syncState.platform === 'steam' && $syncState.error}
+        <div class="notice" role="alert">
+          <p>{$syncState.error}</p>
+          {#if $syncState.helpUrl === STEAM_PRIVACY_URL}
+            <p class="muted">
+              Steam only shares a library when the profile allows it. Open
+              <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
+                your Steam privacy settings
+              </a>
+              and set <strong>Game details</strong> to <strong>Public</strong>. You can set it back
+              afterwards — Cartridge keeps what it imported.
+            </p>
+          {:else if $syncState.helpUrl}
+            <p class="muted">
+              <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
+                How to fix this
+              </a>
+            </p>
+          {/if}
+        </div>
+      {/if}
+
+      {#if confirmingDisconnect}
+        <div class="confirm">
+          <p>Disconnect Steam?</p>
+          <p class="muted">
+            This removes your Steam account number and the Steam playtime and achievement figures
+            from your library. <strong
+              >Your games, ratings, reviews, notes and shelves stay exactly as they are</strong
+            > — they're yours, and they have nothing to do with Steam.
+          </p>
+          <div class="row wrap">
+            <button type="button" class="btn danger" onclick={confirmDisconnect}>
+              Disconnect Steam
+            </button>
+            <button type="button" class="btn ghost" onclick={() => (confirmingDisconnect = false)}>
+              Keep it connected
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
 
-    {#if !xbox}
-      <div class="stack">
-        <div>
-          <label class="fieldlabel" for="xbl-key">OpenXBL API key</label>
-          <!--
+    <div class="platform">
+      <div class="row spread wrap">
+        <div class="grow">
+          <h3>Xbox <span class="pill">Unofficial</span></h3>
+          {#if !$connectionsLoaded}
+            <p class="muted status">Checking…</p>
+          {:else if xbox}
+            <p class="muted status">
+              Connected as {xbox.account}.
+              {#if xbox.syncedAt}
+                Last synced {new Date(xbox.syncedAt).toLocaleDateString()}.
+              {:else}
+                Not synced yet.
+              {/if}
+            </p>
+          {:else}
+            <p class="muted status">
+              Uses your own free key from OpenXBL, a third-party service. Microsoft has no public
+              Xbox library API, so this is the only route there is — and it can break without
+              warning. If it does, only this tab stops working.
+            </p>
+          {/if}
+        </div>
+
+        <div class="row wrap">
+          {#if xbox}
+            <button type="button" class="btn primary" onclick={syncXbox} disabled={syncing}>
+              {xboxSyncing ? 'Reading your library…' : 'Sync now'}
+            </button>
+            <button
+              type="button"
+              class="btn ghost"
+              onclick={() => (confirmingXboxDisconnect = true)}
+              disabled={syncing}
+            >
+              Disconnect
+            </button>
+          {/if}
+        </div>
+      </div>
+
+      {#if !xbox}
+        <div class="stack">
+          <div>
+            <label class="fieldlabel" for="xbl-key">OpenXBL API key</label>
+            <!--
             A password field for a key rather than a token, because it is one: it grants read
             access to an Xbox account for as long as it exists. It is stored on this device
             with your other credentials, sent to your bridge only for the request that needs
             it, and deliberately left out of backups.
           -->
-          <input
-            id="xbl-key"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Paste your key"
-            bind:value={xboxKey}
-            disabled={!$bridgeUrl || xboxBusy}
-          />
-        </div>
-        <p class="muted status">
-          Sign in at
-          <a href={OPENXBL_KEY_URL} target="_blank" rel="noopener noreferrer">xbl.io</a>
-          with your Microsoft account and copy the key it shows you. It is yours rather than Cartridge's,
-          so your rate limit is your own — and it stays on this device.
-        </p>
-        <div class="row wrap">
-          <button
-            type="button"
-            class="btn primary"
-            onclick={connectXboxNow}
-            disabled={!$bridgeUrl || xboxBusy}
-          >
-            {xboxBusy ? 'Checking the key…' : 'Connect Xbox'}
-          </button>
-        </div>
-      </div>
-    {/if}
-
-    {#if !$bridgeUrl}
-      <p class="muted status">
-        Xbox needs a bridge too — OpenXBL sends no browser CORS headers, so the request has to go
-        through it. Set one above and this turns on.
-      </p>
-    {/if}
-
-    {#if xboxNeedsReconnect}
-      <div class="notice">
-        <p>
-          <strong>{xboxLinkedCount}</strong>
-          {xboxLinkedCount === 1 ? 'game in your library is' : 'games in your library are'}
-          linked to Xbox, but this device isn’t connected to it.
-        </p>
-        <p class="muted">
-          Your OpenXBL key isn’t part of a backup, on purpose — a backup file is not a place for a
-          secret. Everything you wrote came across fine; paste the key again to resume syncing.
-        </p>
-      </div>
-    {/if}
-
-    {#if xboxNotice}
-      <p class="error" role="alert">{xboxNotice}</p>
-    {/if}
-
-    {#if xboxSyncing}
-      <p class="muted status" aria-live="polite">
-        {$syncState.phase === 'fetching'
-          ? 'Asking Xbox what you’ve played…'
-          : `Identifying games… ${$syncState.done} of ${$syncState.total}`}
-      </p>
-    {/if}
-
-    {#if $syncState.platform === 'xbox' && $syncState.error}
-      <div class="notice" role="alert">
-        <p>{$syncState.error}</p>
-        {#if $syncState.helpUrl}
-          <p class="muted">
-            <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
-              Get a new key from xbl.io
-            </a>
+            <input
+              id="xbl-key"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Paste your key"
+              bind:value={xboxKey}
+              disabled={!bridgeReady || xboxBusy}
+            />
+          </div>
+          <p class="muted status">
+            Sign in at
+            <a href={OPENXBL_KEY_URL} target="_blank" rel="noopener noreferrer">xbl.io</a>
+            with your Microsoft account and copy the key it shows you. It is yours rather than Cartridge's,
+            so your rate limit is your own — and it stays on this device.
           </p>
-        {/if}
-      </div>
-    {/if}
-
-    {#if confirmingXboxDisconnect}
-      <div class="confirm">
-        <p>Disconnect Xbox?</p>
-        <p class="muted">
-          This forgets your OpenXBL key and removes the Xbox playtime and achievement figures from
-          your library. <strong
-            >Your games, ratings, reviews, notes and shelves stay exactly as they are.</strong
-          > The key itself lives in your xbl.io account — delete it there if you want it gone for good.
-        </p>
-        <div class="row wrap">
-          <button type="button" class="btn danger" onclick={confirmXboxDisconnect}>
-            Disconnect Xbox
-          </button>
-          <button
-            type="button"
-            class="btn ghost"
-            onclick={() => (confirmingXboxDisconnect = false)}
-          >
-            Keep it connected
-          </button>
+          <div class="row wrap">
+            <button
+              type="button"
+              class="btn primary"
+              onclick={connectXboxNow}
+              disabled={!bridgeReady || xboxBusy}
+            >
+              {xboxBusy ? 'Checking the key…' : 'Connect Xbox'}
+            </button>
+          </div>
         </div>
-      </div>
-    {/if}
-  </div>
+      {/if}
 
-  <p class="muted status">PlayStation and Nintendo are still to come.</p>
-</section>
+      {#if !bridgeReady}
+        <p class="muted status">
+          Xbox needs a bridge too — OpenXBL sends no browser CORS headers, so the request has to go
+          through it. Configure and test one above to turn this on.
+        </p>
+      {/if}
 
-{#if showImport}
-  <ConnectorImport />
+      {#if xboxNeedsReconnect}
+        <div class="notice">
+          <p>
+            <strong>{xboxLinkedCount}</strong>
+            {xboxLinkedCount === 1 ? 'game in your library is' : 'games in your library are'}
+            linked to Xbox, but this device isn’t connected to it.
+          </p>
+          <p class="muted">
+            Your OpenXBL key isn’t part of a backup, on purpose — a backup file is not a place for a
+            secret. Everything you wrote came across fine; paste the key again to resume syncing.
+          </p>
+        </div>
+      {/if}
+
+      {#if xboxNotice}
+        <p class="error" role="alert">{xboxNotice}</p>
+      {/if}
+
+      {#if xboxSyncing}
+        <p class="muted status" aria-live="polite">
+          {$syncState.phase === 'fetching'
+            ? 'Asking Xbox what you’ve played…'
+            : `Identifying games… ${$syncState.done} of ${$syncState.total}`}
+        </p>
+      {/if}
+
+      {#if $syncState.platform === 'xbox' && $syncState.error}
+        <div class="notice" role="alert">
+          <p>{$syncState.error}</p>
+          {#if $syncState.helpUrl}
+            <p class="muted">
+              <a href={$syncState.helpUrl} target="_blank" rel="noopener noreferrer">
+                Get a new key from xbl.io
+              </a>
+            </p>
+          {/if}
+        </div>
+      {/if}
+
+      {#if confirmingXboxDisconnect}
+        <div class="confirm">
+          <p>Disconnect Xbox?</p>
+          <p class="muted">
+            This forgets your OpenXBL key and removes the Xbox playtime and achievement figures from
+            your library. <strong
+              >Your games, ratings, reviews, notes and shelves stay exactly as they are.</strong
+            > The key itself lives in your xbl.io account — delete it there if you want it gone for good.
+          </p>
+          <div class="row wrap">
+            <button type="button" class="btn danger" onclick={confirmXboxDisconnect}>
+              Disconnect Xbox
+            </button>
+            <button
+              type="button"
+              class="btn ghost"
+              onclick={() => (confirmingXboxDisconnect = false)}
+            >
+              Keep it connected
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <p class="muted status">PlayStation and Nintendo are still to come.</p>
+  </section>
+
+  {#if showImport}
+    <ConnectorImport />
+  {/if}
 {/if}
 
 <style>
@@ -690,5 +738,24 @@
   }
   .notice p:last-child {
     margin-bottom: 0;
+  }
+  .switch {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+  }
+  .switch input {
+    width: auto;
+    margin: 0;
+    flex: none;
+  }
+  .step {
+    display: inline-block;
+    margin-right: var(--spacing-xs);
+    font-size: var(--font-size-overline);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
   }
 </style>

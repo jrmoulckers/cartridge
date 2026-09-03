@@ -62,16 +62,24 @@
 <h1 class="sr-only">Library</h1>
 
 {#if empty}
-  <!-- First run. The point of this screen is to say, plainly, that nothing is required. -->
+  <!-- First run. The point of this screen is to explain the app in three sentences. -->
   <section class="card welcome stack">
     <div>
-      <h2>Your library starts empty — and that’s all it needs</h2>
+      <h2>Keep track of the games you play</h2>
       <p class="muted">
-        Cartridge works completely offline with no accounts connected. Add a game by hand and you
-        can shelve it, rate it, review it and search it straight away. Connecting Steam, Xbox,
-        PlayStation or Nintendo later only fills in the details you didn’t feel like typing.
+        Cartridge is a shelf for your games. It lives in this browser, on this device — no account,
+        no sign-in, and it works with the network off.
       </p>
     </div>
+
+    <ol class="steps">
+      <li><strong>Add a game.</strong> A title is the only thing it needs.</li>
+      <li>
+        <strong>Put it on a shelf.</strong> Playing, played, want to play, on hold or dropped.
+      </li>
+      <li><strong>Rate it and write about it.</strong> Then search it all back later.</li>
+    </ol>
+
     <div class="row wrap">
       <a class="btn primary" href="/add" use:link>Add your first game</a>
       <a class="btn ghost" href="/settings" use:link>Restore a backup</a>
@@ -311,6 +319,14 @@
   }
   .welcome p {
     margin-bottom: 0;
+  }
+  .steps {
+    margin: 0;
+    padding-left: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    color: var(--muted);
   }
 
   .controls {
