@@ -332,17 +332,19 @@
       <section class="card stack" aria-labelledby="platforms-h">
         <h2 id="platforms-h">Platform links <span class="pill">Optional</span></h2>
         <p class="muted hint">
-          A link tells Cartridge that this game is the same game as one in a connected Steam or
-          Xbox account, so playtime lands on the right shelf entry. Nothing here affects your
-          rating, review or notes.
+          A link tells Cartridge that this game is the same game as one in a connected Steam or Xbox
+          account, so playtime lands on the right shelf entry. Nothing here affects your rating,
+          review or notes.
         </p>
 
         {#each item.links as l (l.id)}
           <div class="row spread">
             <span>{PLATFORM_LABELS[l.platform]} · <code>{l.externalId}</code></span>
-            <button type="button" class="btn small ghost" onclick={() => removeLink(l.id)}>
-              Unlink
-            </button>
+            {#if $settings.advanced}
+              <button type="button" class="btn small ghost" onclick={() => removeLink(l.id)}>
+                Unlink
+              </button>
+            {/if}
           </div>
         {/each}
 
@@ -358,12 +360,7 @@
               <label for="link-id">Platform id</label>
               <input id="link-id" type="text" bind:value={newLinkId} placeholder="e.g. 753640" />
             </div>
-            <button
-              type="button"
-              class="btn small"
-              onclick={saveLink}
-              disabled={!newLinkId.trim()}
-            >
+            <button type="button" class="btn small" onclick={saveLink} disabled={!newLinkId.trim()}>
               Link
             </button>
           </div>

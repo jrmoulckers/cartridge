@@ -67,8 +67,8 @@
     <div>
       <h2>Keep track of the games you play</h2>
       <p class="muted">
-        Cartridge is a shelf for your games. It lives in this browser, on this device — no
-        account, no sign-in, and it works with the network off.
+        Cartridge is a shelf for your games. It lives in this browser, on this device — no account,
+        no sign-in, and it works with the network off.
       </p>
     </div>
 
