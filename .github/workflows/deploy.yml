@@ -1,0 +1,25 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  pages:
+    name: Build and deploy Pages
+    permissions:
+      contents: read
+      packages: read
+      pages: write
+      id-token: write
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-pages.yml@5f6ff9e22d82be576e01d0b094315a202ccbd186 # main
+    with:
+      node-version: '22'
+      package-manager: npm
+      build-command: VITE_BRIDGE_URL=https://cartridge-bridge.cartridge.workers.dev npm run build
+      output-dir: dist
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'

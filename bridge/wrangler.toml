@@ -12,7 +12,7 @@ id = "084b58b24ce94c6897ca2d3bd04d6b95"
 [vars]
 # Comma-separated exact origins allowed to call this worker. There is no wildcard: an
 # origin that isn't listed gets no CORS headers and no data.
-ALLOWED_ORIGINS = "http://localhost:5173"
+ALLOWED_ORIGINS = "https://games.jrmoulckers.com,http://localhost:5173"
 
 # Secrets (never in this file — set with `wrangler secret put`):
 #   TWITCH_CLIENT_ID

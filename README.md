@@ -3,6 +3,8 @@
 Track the games you're playing, have played, and want to play — across Steam, Xbox,
 PlayStation and Nintendo. Rate them, review them, shelve them. Goodreads for video games.
 
+**Live site:** [games.jrmoulckers.com](https://games.jrmoulckers.com)
+
 **It works completely offline with no accounts connected.** That's the point, not a
 fallback: shelves, ratings, Markdown reviews, notes, dates, search and backups all run on
 your device with nothing plugged in. Platform connectors and metadata lookup are
@@ -27,6 +29,18 @@ npm run dev        # http://localhost:5173
 ```
 
 That's it. No configuration, no keys, no account. Add a game and start using it.
+
+## Deployment
+
+Pushes to `main` deploy the production build to GitHub Pages at
+[`games.jrmoulckers.com`](https://games.jrmoulckers.com). The Pages build uses `/` as its Vite,
+manifest and service-worker scope because the custom domain serves Cartridge at its root. It
+also includes `404.html` for client-side deep links and `CNAME` for the custom domain.
+
+The production build defaults to the public bridge at
+`https://cartridge-bridge.cartridge.workers.dev`. A bridge URL saved in **Settings** remains a
+per-device override. The bridge allowlist accepts the production site and local Vite development;
+see [`bridge/README.md`](bridge/README.md) for Worker deployment details.
 
 ## Scripts
 
